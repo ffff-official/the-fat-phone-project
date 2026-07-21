@@ -124,7 +124,7 @@ impl WmsClient {
             );
             if handler_id == 0 {
                 drop(Box::from_raw(
-                    mpsc_ptr as *mut UnboundedSender<(Vec<u8>, WmsMessageFormat)>,
+                    mpsc_ptr.cast::<UnboundedSender<(Vec<u8>, WmsMessageFormat)>>(),
                 ));
                 Err(QmiError::new("handler id = 0", "set_event_report"))?;
             } else {
@@ -139,6 +139,7 @@ impl WmsClient {
             );
             if ret == 0 {
                 qmi_message_wms_set_event_report_input_unref(input);
+                gobject_sys::g_signal_handler_disconnect(self.client.as_ptr().cast(), handler_id);
                 Err((error, "set_event_report"))?;
             }
 

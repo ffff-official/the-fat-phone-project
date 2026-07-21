@@ -25,6 +25,7 @@ manual = [
     "Qmi.MessageWmsGetRoutesOutputRouteListElement",
     "Qmi.MessageUimGetCardStatusOutputCardStatusCardsElement",
     "Qmi.MessageUimGetCardStatusOutputCardStatusCardsElementApplicationsElementV2",
+    "Qmi.IndicationVoiceAllCallStatusOutputCallInformationCall",
 ]
 
 generate = [

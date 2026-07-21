@@ -70,6 +70,7 @@ pub(crate) mod engine;
 pub(crate) mod init;
 pub(crate) mod messaging;
 pub(crate) mod network;
+pub(crate) mod voice;
 
 /// Types related to SMS messages.
 pub mod sms {
@@ -113,6 +114,7 @@ use futures::Stream;
 use futures::channel::mpsc;
 use futures::channel::oneshot;
 use futures::task::{Context, Poll};
+use libqmi_glib_types_rs::IndicationVoiceAllCallStatusOutputCallInformationCall;
 use num_enum::TryFromPrimitiveError;
 
 use std::any::type_name;
@@ -123,6 +125,8 @@ use std::str::Utf8Error;
 use std::string::{FromUtf8Error, FromUtf16Error};
 use std::sync::Arc;
 use std::sync::mpsc::sync_channel;
+
+use crate::engine::VoiceServiceRequest;
 
 /// The main handle for interacting with the client.
 ///
@@ -160,6 +164,8 @@ pub enum SmEvent {
     SmsWapPush(sms::SmsWapPush),
     /// An SMS status report has been received.
     SmsStatusReport(sms::SmsStatusReport),
+    /// Voice call event
+    VoiceCallEvent(Vec<IndicationVoiceAllCallStatusOutputCallInformationCall>),
 }
 
 impl SmClientHandle {
@@ -608,6 +614,47 @@ impl SmClient {
         self.inner
             .engine_sender
             .unbounded_send(Request::UimService(UimServiceRequest {
+                executor,
+                reply_sender,
+            }))?;
+
+        let response = reply_receiver.await?;
+
+        response
+            .downcast::<T>()
+            .map(|value| *value)
+            .map_err(|_| SmError::DowncastingFailed)
+    }
+
+    /// Make a raw request to the VOICE service through libqmi-glib-rs.
+    ///
+    /// The function body executes on the GLib runtime.
+    /// The second parameter is a handle to the Tokio runtime, allowing Tokio tasks to be spawned if needed.
+    ///
+    /// # Warning
+    ///
+    /// This is a low-level API. The supplied closure is executed by the service
+    /// engine and may return any `Send + 'static` value.
+    pub async fn voice_raw_request<T, F, Fut>(&self, executor: F) -> SmResult<T>
+    where
+        T: Send + 'static,
+        F: FnOnce(libqmi_glib_rs::VoiceClient, tokio::runtime::Handle) -> Fut + Send + 'static,
+        Fut: Future<Output = T> + 'static,
+    {
+        let executor = Box::new(move |client, tokio_handle| {
+            let future = executor(client, tokio_handle);
+
+            Box::pin(async move {
+                let response = future.await;
+                Box::new(response) as ServiceResult
+            }) as ServiceFuture
+        });
+
+        let (reply_sender, reply_receiver) = oneshot::channel::<ServiceResult>();
+
+        self.inner
+            .engine_sender
+            .unbounded_send(Request::VoiceService(VoiceServiceRequest {
                 executor,
                 reply_sender,
             }))?;

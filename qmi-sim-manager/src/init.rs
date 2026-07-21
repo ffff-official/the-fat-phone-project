@@ -1,6 +1,6 @@
-use crate::{SmError, SmEvent, SmResult, engine, messaging, network};
+use crate::{SmError, SmEvent, SmResult, engine, messaging, network, voice};
 
-use libqmi_glib_rs::{Device, UimClient, WdsClient, WmsClient};
+use libqmi_glib_rs::{Device, UimClient, VoiceClient, WdsClient, WmsClient};
 
 use futures::channel::mpsc;
 use futures::{FutureExt, select};
@@ -46,19 +46,25 @@ pub(crate) fn init_thread(
             let mut wms_client = WmsClient::new(&device).await?;
             let wds_client = WdsClient::new(&device).await?;
             let uim_client = UimClient::new(&device).await?;
+            let voice_client = VoiceClient::new(&device).await?;
 
-            let tpdu_join_handle = async {
+            let result = async {
                 network::prepare_network_interface(&device).await?;
-                let th = messaging::start_messaging(
+                let th_msg = messaging::start_messaging(
                     &mut wms_client,
                     tokio_handle.clone(),
-                    sm_event_sender,
+                    sm_event_sender.clone(),
                 )
                 .await?;
+                let voice_client_clone = voice_client.clone();
+                let th_voice = ctx_clone.spawn_local(async move {
+                    voice::process_voice_events(voice_client_clone, sm_event_sender.clone()).await
+                });
 
                 let wds_client_clone = wds_client.clone();
                 let wms_client_clone = wms_client.clone();
                 let uim_client_clone = uim_client.clone();
+                let voice_client_clone = voice_client.clone();
                 let status_sender_clone = status_sender.clone();
                 let glib_control_loop = ctx_clone.spawn_local(async move {
                     drop(status_sender_clone.send(Ok(engine_sender)));
@@ -66,6 +72,7 @@ pub(crate) fn init_thread(
                         wds_client_clone,
                         wms_client_clone,
                         uim_client_clone,
+                        voice_client_clone,
                         tokio_handle,
                         engine_receiver,
                     )
@@ -87,10 +94,13 @@ pub(crate) fn init_thread(
                     Ok(Err(e)) => tracing::error!("glib_control_loop failure : {}", e),
                     Ok(Ok(v)) => tracing::debug!("glib_control_loop has returning {:?}", v),
                 }
-                Ok::<_, SmError>(th)
+                Ok::<(_, _), SmError>((th_msg, th_voice))
             }
             .await;
 
+            if let Err(e) = voice_client.close().await {
+                tracing::error!("Cannot close VOICE client properly : {}", e);
+            }
             if let Err(e) = uim_client.close().await {
                 tracing::error!("Cannot close UIM client properly : {}", e);
             }
@@ -104,10 +114,13 @@ pub(crate) fn init_thread(
                 tracing::error!("Cannot close DEVICE properly : {}", e)
             }
 
-            match tpdu_join_handle {
-                Ok(handle) => {
-                    if let Err(e) = handle.join() {
-                        tracing::error!("TPDU Thread has panicked ! {:?}", e);
+            match result {
+                Ok((th_msg, th_voice)) => {
+                    if let Err(e) = th_msg.join() {
+                        tracing::error!("MESSAGING Thread has panicked ! {:?}", e);
+                    }
+                    if let Err(e) = th_voice.await {
+                        tracing::error!("VOICE Thread has panicked ! {:?}", e);
                     }
                 }
                 Err(e) => {

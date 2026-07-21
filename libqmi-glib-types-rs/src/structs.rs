@@ -40,3 +40,15 @@ pub struct MessageWmsGetRoutesOutputRouteListElement {
     pub storage: WmsStorageType,
     pub receipt_action: WmsReceiptAction,
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Boilerplates)]
+#[boilerplates(prefix = "Qmi", source = "crate::ffi")]
+pub struct IndicationVoiceAllCallStatusOutputCallInformationCall {
+    pub id: u8,
+    pub state: VoiceCallState,
+    pub type_: VoiceCallType,
+    pub direction: VoiceCallDirection,
+    pub mode: VoiceCallMode,
+    pub multipart_indicator: bool,
+    pub als: VoiceAls,
+}

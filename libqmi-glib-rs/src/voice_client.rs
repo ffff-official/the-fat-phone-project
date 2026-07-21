@@ -2,13 +2,15 @@ use super::*;
 
 use crate::sys::*;
 
+use futures::channel::mpsc::UnboundedSender;
 use futures::channel::oneshot;
 use gio_sys::GAsyncResult;
-use glib_sys::GFALSE;
-use gobject_sys::{GObject, g_object_ref, g_object_unref};
-use libqmi_glib_types_rs::DeviceReleaseClientFlags;
-use libqmi_glib_types_rs::Service;
+use glib_sys::{GArray, GFALSE};
+use gobject_sys::{GClosure, GObject, g_object_ref, g_object_unref};
 use libqmi_glib_types_rs::glib::translate::IntoGlib;
+use libqmi_glib_types_rs::{
+    DeviceReleaseClientFlags, IndicationVoiceAllCallStatusOutputCallInformationCall, Service,
+};
 
 use std::ffi::c_void;
 use std::ptr::NonNull;
@@ -40,6 +42,8 @@ impl Clone for VoiceClient {
         }
     }
 }
+
+type CallInformation = IndicationVoiceAllCallStatusOutputCallInformationCall;
 
 impl VoiceClient {
     #[allow(dead_code)]
@@ -95,6 +99,68 @@ impl VoiceClient {
         }
         rx.await.map_err(|_| QmiError::cb_droped())?
     }
+
+    /// Asynchronously sends a Set All Call Status request to the device.
+    /// The sender parameter is the communication channel through which newly received new call states
+    pub async fn set_all_call_status(
+        &mut self,
+        sender: UnboundedSender<Vec<CallInformation>>,
+    ) -> QmiResult<()> {
+        unsafe {
+            let mpsc_ptr = Box::into_raw(Box::new(sender)).cast();
+            let handler_id = gobject_sys::g_signal_connect_data(
+                self.client.as_ptr().cast(),
+                c"all-call-status".as_ptr(),
+                Some(std::mem::transmute(
+                    all_call_status_cb as unsafe extern "C" fn(_, _, _),
+                )),
+                mpsc_ptr,
+                Some(destroy_all_call_status_data),
+                0,
+            );
+            if handler_id == 0 {
+                drop(Box::from_raw(
+                    mpsc_ptr.cast::<UnboundedSender<Vec<CallInformation>>>(),
+                ));
+                Err(QmiError::new("handler id = 0", "set_all_call_status"))?;
+            } else {
+                tracing::debug!("Receiving all call status handler id = {}", handler_id);
+            }
+
+            let input = qmi_message_voice_indication_register_input_new();
+
+            let mut error: *mut GError = null_mut();
+            let ret = qmi_message_voice_indication_register_input_set_call_notification_events(
+                input,
+                true.into_glib(),
+                &mut error,
+            );
+            if ret == 0 {
+                qmi_message_voice_indication_register_input_unref(input);
+                gobject_sys::g_signal_handler_disconnect(self.client.as_ptr().cast(), handler_id);
+                Err((error, "set_all_call_status"))?;
+            }
+
+            let (tx, rx) = oneshot::channel::<QmiResult<()>>();
+
+            qmi_client_voice_indication_register(
+                self.client.as_ptr(),
+                input,
+                OPERATION_TIMEOUT,
+                null_mut(),
+                Some(set_all_call_status_cb),
+                Box::into_raw(Box::new(tx)).cast(),
+            );
+            qmi_message_voice_indication_register_input_unref(input);
+
+            let ret = rx.await.map_err(|_| QmiError::cb_droped())?;
+            if ret.is_err() {
+                gobject_sys::g_signal_handler_disconnect(self.client.as_ptr().cast(), handler_id);
+            }
+            tracing::debug!("VOICE ready, waiting for events...");
+            ret
+        }
+    }
 }
 
 unsafe extern "C" fn allocate_client_cb(
@@ -130,4 +196,74 @@ unsafe extern "C" fn release_client_cb(
         _ => Ok(()),
     };
     drop(sender.send(output).inspect_err(cannot_send));
+}
+
+unsafe extern "C" fn all_call_status_cb(
+    _client: *mut GObject,
+    output: *mut QmiIndicationVoiceAllCallStatusOutput,
+    user_data: *mut c_void,
+) {
+    tracing::debug!("VOICE all call status received");
+
+    let mut error: *mut GError = null_mut();
+
+    let mut garray: *mut GArray = null_mut();
+    let ret = qmi_indication_voice_all_call_status_output_get_call_information(
+        output,
+        &mut garray,
+        &mut error,
+    );
+    if ret == false.into_glib() || garray.is_null() {
+        tracing::error!("{}", Into::<QmiError>::into((error, "call event")));
+    } else {
+        let data_ffi_slice = {
+            let ptr = (*garray)
+                .data
+                .cast::<QmiIndicationVoiceAllCallStatusOutputCallInformationCall>();
+            let len = (*garray).len as usize;
+            std::slice::from_raw_parts(ptr, len)
+        };
+        let data: Vec<_> = data_ffi_slice
+            .iter()
+            .copied()
+            .map(CallInformation::from)
+            .collect();
+        let sender = &*(user_data.cast::<UnboundedSender<Vec<CallInformation>>>());
+
+        if sender.unbounded_send(data).is_err() {
+            tracing::warn!("VOICE event receiver has been dropped");
+        }
+    }
+}
+
+unsafe extern "C" fn set_all_call_status_cb(
+    client: *mut GObject,
+    res: *mut GAsyncResult,
+    user_data: *mut c_void,
+) {
+    let sender = Box::from_raw(user_data.cast::<oneshot::Sender<QmiResult<()>>>());
+    let mut error: *mut GError = null_mut();
+
+    let output = qmi_client_voice_indication_register_finish(client.cast(), res, &mut error);
+    if output.is_null() {
+        let _drop = sender
+            .send(Err((error, "voice all call status cb").into()))
+            .inspect_err(cannot_send);
+        return;
+    }
+
+    let ret = qmi_message_voice_indication_register_output_get_result(output, &mut error);
+    qmi_message_voice_indication_register_output_unref(output);
+
+    let output: Result<(), _> = match ret {
+        GFALSE => Err((error, "voice all call status cb").into()),
+        _ => Ok(()),
+    };
+    drop(sender.send(output).inspect_err(cannot_send));
+}
+
+// Lauched when no more instances of GObject references QmiClientVoice exists
+unsafe extern "C" fn destroy_all_call_status_data(data: *mut c_void, _closure: *mut GClosure) {
+    tracing::debug!("destroy_all_call_status_data");
+    drop(Box::from_raw(data.cast::<UnboundedSender<()>>()));
 }

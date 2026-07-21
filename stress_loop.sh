@@ -1,8 +1,8 @@
-bin=`exec ./build.sh`
+bin=`exec ./build.sh $1`
 
 while true; do
     "$bin" "/dev/cdc-wdm1" & pid=$!
-    sleep 5
+    sleep 10
     kill -INT "$pid" 2>/dev/null
     wait "$pid" 2>/dev/null
     sleep 1

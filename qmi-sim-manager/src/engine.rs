@@ -1,7 +1,7 @@
 use crate::{ServiceFuture, ServiceResult, SmError, SmResult, messaging, network};
 use messaging::{MmsContent, MmsStatus};
 
-use libqmi_glib_rs::{UimClient, WdsClient, WmsClient};
+use libqmi_glib_rs::{UimClient, VoiceClient, WdsClient, WmsClient};
 use libqmi_glib_types_rs::WdsConnectionStatus;
 
 use futures::channel::mpsc;
@@ -33,6 +33,7 @@ pub enum Request {
     WdsService(WdsServiceRequest),
     WmsService(WmsServiceRequest),
     UimService(UimServiceRequest),
+    VoiceService(VoiceServiceRequest),
 }
 
 #[derive(Debug)]
@@ -108,12 +109,24 @@ impl fmt::Debug for UimServiceRequest {
     }
 }
 
+pub struct VoiceServiceRequest {
+    pub executor: Box<dyn FnOnce(VoiceClient, tokio::runtime::Handle) -> ServiceFuture + Send>,
+    pub reply_sender: oneshot::Sender<ServiceResult>,
+}
+
+impl fmt::Debug for VoiceServiceRequest {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "voice service executor")
+    }
+}
+
 /// This control loop receives all external commands. It uses the various QMI services to process
 /// each command and then returns the result using a Request–Reply pattern.
 pub(crate) async fn glib_control_loop(
     mut wds_client: WdsClient,
     mut wms_client: WmsClient,
     uim_client: UimClient,
+    voice_client: VoiceClient,
     tokio_handle: tokio::runtime::Handle,
     mut mpsc_receiver: mpsc::UnboundedReceiver<Request>,
 ) -> SmResult<String> {
@@ -193,6 +206,11 @@ pub(crate) async fn glib_control_loop(
                 Request::UimService(req) => {
                     let func = req.executor;
                     let ret = func(uim_client.clone(), tokio_handle.clone()).await;
+                    req_send(req.reply_sender, ret);
+                }
+                Request::VoiceService(req) => {
+                    let func = req.executor;
+                    let ret = func(voice_client.clone(), tokio_handle.clone()).await;
                     req_send(req.reply_sender, ret);
                 }
             },
