@@ -7,7 +7,7 @@ use gio_sys::GAsyncResult;
 use glib_sys::{
     GArray, GError, GFALSE, g_array_append_vals, g_array_sized_new, g_array_unref, guint16, guint32,
 };
-use gobject_sys::{GObject, g_object_ref, g_object_unref};
+use gobject_sys::{GClosure, GObject, g_object_ref, g_object_unref};
 use libqmi_glib_types_rs::MessageWmsGetRoutesOutputRouteListElement;
 use libqmi_glib_types_rs::glib::translate::FromGlib;
 use libqmi_glib_types_rs::glib::translate::IntoGlib;
@@ -15,10 +15,8 @@ use libqmi_glib_types_rs::{
     DeviceReleaseClientFlags, Service, WmsGsmUmtsRpCause, WmsGsmUmtsTpCause, WmsMessageFormat,
 };
 
-use std::cell::RefCell;
-use std::ffi::{c_ulong, c_void};
+use std::ffi::c_void;
 use std::ptr::{NonNull, null_mut};
-use std::rc::Rc;
 
 type Route = MessageWmsGetRoutesOutputRouteListElement;
 
@@ -27,35 +25,13 @@ type Route = MessageWmsGetRoutesOutputRouteListElement;
 pub struct WmsClient {
     client: NonNull<QmiClientWms>,
     device: Device,
-    event_report_data: Rc<RefCell<Option<EventReportData>>>,
-}
-
-#[derive(Debug)]
-struct EventReportData {
-    mpsc_ptr: NonNull<c_void>,
-    handler_id: c_ulong,
 }
 
 impl Drop for WmsClient {
     fn drop(&mut self) {
-        tracing::trace!("WMS CLIENT is droped !");
+        tracing::debug!("WMS CLIENT is droped !");
         unsafe {
-            if let Some(event_report_data) = self.event_report_data.take() {
-                let handler_id = event_report_data.handler_id;
-                debug_assert_ne!(handler_id, 0);
-                gobject_sys::g_signal_handler_disconnect(self.client.as_ptr() as _, handler_id);
-                debug_assert_eq!(
-                    gobject_sys::g_signal_handler_is_connected(
-                        self.client.as_ptr() as _,
-                        handler_id,
-                    ),
-                    GFALSE
-                );
-
-                drop(Box::from_raw(event_report_data.mpsc_ptr.as_ptr()
-                    as *mut UnboundedSender<(Vec<u8>, QmiWmsMessageFormat)>));
-            }
-            g_object_unref(self.client.as_ptr() as _);
+            g_object_unref(self.client.as_ptr().cast());
         }
     }
 }
@@ -63,12 +39,11 @@ impl Drop for WmsClient {
 impl Clone for WmsClient {
     fn clone(&self) -> Self {
         unsafe {
-            g_object_ref(self.client.as_ptr() as _);
+            g_object_ref(self.client.as_ptr().cast());
         }
         Self {
             client: self.client,
             device: self.device.clone(),
-            event_report_data: self.event_report_data.clone(),
         }
     }
 }
@@ -85,20 +60,19 @@ impl WmsClient {
 
         unsafe {
             qmi_device_allocate_client(
-                device.as_ptr() as _,
+                device.as_ptr().cast(),
                 Service::Wms.into_glib(),
                 QMI_CID_NONE as _,
                 OPERATION_TIMEOUT,
                 null_mut(),
                 Some(allocate_client_cb),
-                Box::into_raw(Box::new(tx)) as *mut c_void,
+                Box::into_raw(Box::new(tx)).cast(),
             )
         };
         match rx.await.map_err(|_| QmiError::cb_droped())? {
             Ok(client) => Ok(Self {
                 device: device.clone(),
                 client,
-                event_report_data: Rc::new(RefCell::new(None)),
             }),
             Err(e) => Err(e),
         }
@@ -106,7 +80,7 @@ impl WmsClient {
 
     /// Asynchronously releases the [`WmsClient`] from the [`Device`].
     pub async fn close(self) -> QmiResult<()> {
-        let ref_count = unsafe { *(self.client.as_ptr() as *mut GObject) }.ref_count;
+        let ref_count = unsafe { *(self.client.as_ptr().cast::<GObject>()) }.ref_count;
         if ref_count != 2 {
             Err(QmiError::new(
                 format!("can't close ref count = {}", ref_count),
@@ -118,12 +92,12 @@ impl WmsClient {
         unsafe {
             qmi_device_release_client(
                 self.device.as_ptr(),
-                self.client.as_ptr() as _,
+                self.client.as_ptr().cast(),
                 DeviceReleaseClientFlags::RELEASE_CID.into_glib(),
                 OPERATION_TIMEOUT,
                 null_mut(),
                 Some(release_client_cb),
-                Box::into_raw(Box::new(tx)) as *mut c_void,
+                Box::into_raw(Box::new(tx)).cast(),
             );
         }
         rx.await.map_err(|_| QmiError::cb_droped())?
@@ -136,33 +110,25 @@ impl WmsClient {
         sender: UnboundedSender<(Vec<u8>, WmsMessageFormat)>,
     ) -> QmiResult<()> {
         unsafe {
-            let mut borrow = self.event_report_data.borrow_mut();
-            if borrow.is_none() {
-                let mpsc_ptr = Box::into_raw(Box::new(sender)) as *mut c_void;
-                let handler_id = gobject_sys::g_signal_connect_data(
-                    self.client.as_ptr() as _,
-                    c"event-report".as_ptr(),
-                    Some(std::mem::transmute(
-                        event_report_cb as unsafe extern "C" fn(_, _, _),
-                    )),
-                    mpsc_ptr,
-                    None,
-                    0,
-                );
-                if handler_id == 0 {
-                    drop(Box::from_raw(
-                        mpsc_ptr as *mut UnboundedSender<(Vec<u8>, WmsMessageFormat)>,
-                    ));
-                    Err(QmiError::new("handler id = 0", "set_event_report"))?;
-                } else {
-                    tracing::debug!("Receiving evt report handler id = {}", handler_id);
-                    *borrow = Some(EventReportData {
-                        mpsc_ptr: NonNull::new(mpsc_ptr).expect("WTF"),
-                        handler_id,
-                    });
-                }
+            let mpsc_ptr = Box::into_raw(Box::new(sender)).cast();
+            let handler_id = gobject_sys::g_signal_connect_data(
+                self.client.as_ptr().cast(),
+                c"event-report".as_ptr(),
+                Some(std::mem::transmute(
+                    event_report_cb as unsafe extern "C" fn(_, _, _),
+                )),
+                mpsc_ptr,
+                Some(destroy_event_report_data),
+                0,
+            );
+            if handler_id == 0 {
+                drop(Box::from_raw(
+                    mpsc_ptr as *mut UnboundedSender<(Vec<u8>, WmsMessageFormat)>,
+                ));
+                Err(QmiError::new("handler id = 0", "set_event_report"))?;
+            } else {
+                tracing::debug!("Receiving evt report handler id = {}", handler_id);
             }
-            drop(borrow);
 
             let input = qmi_message_wms_set_event_report_input_new();
 
@@ -183,7 +149,7 @@ impl WmsClient {
                 OPERATION_TIMEOUT,
                 null_mut(),
                 Some(set_event_report_cb),
-                Box::into_raw(Box::new(tx)) as *mut c_void,
+                Box::into_raw(Box::new(tx)).cast(),
             );
             qmi_message_wms_set_event_report_input_unref(input);
 
@@ -204,7 +170,7 @@ impl WmsClient {
                 OPERATION_TIMEOUT,
                 null_mut(),
                 Some(get_routes_cb),
-                Box::into_raw(Box::new(tx)) as *mut c_void,
+                Box::into_raw(Box::new(tx)).cast(),
             )
         }
         rx.await.map_err(|_| QmiError::cb_droped())?
@@ -224,7 +190,7 @@ impl WmsClient {
             .collect::<Vec<QmiMessageWmsGetRoutesOutputRouteListElement>>();
 
         let mut value_route_list = GArray {
-            data: routes.as_mut_ptr() as _,
+            data: routes.as_mut_ptr().cast(),
             len: routes.len() as _,
         };
         let ret = unsafe {
@@ -248,7 +214,7 @@ impl WmsClient {
                 OPERATION_TIMEOUT,
                 null_mut(),
                 Some(set_routes_cb),
-                Box::into_raw(Box::new(tx)) as *mut c_void,
+                Box::into_raw(Box::new(tx)).cast(),
             );
             qmi_message_wms_set_routes_input_unref(input);
         }
@@ -260,11 +226,11 @@ impl WmsClient {
         let (tx, rx) = oneshot::channel::<QmiResult<u64>>();
 
         let tpdu = unsafe { g_array_sized_new(GFALSE, GFALSE, 1, sms_tpdu.len() as _) };
-        unsafe { g_array_append_vals(tpdu, sms_tpdu.as_ptr() as _, sms_tpdu.len() as _) };
+        unsafe { g_array_append_vals(tpdu, sms_tpdu.as_ptr().cast(), sms_tpdu.len() as _) };
 
         unsafe {
             let len = (*tpdu).len as usize;
-            let data = (*tpdu).data as *const u8;
+            let data = (*tpdu).data.cast::<u8>();
 
             if data.is_null() && len != 0 {
                 tracing::error!("GArray data is NULL but length is {len}");
@@ -303,7 +269,7 @@ impl WmsClient {
                 OPERATION_TIMEOUT,
                 null_mut(),
                 Some(send_sms_cb),
-                Box::into_raw(Box::new(tx)) as *mut c_void,
+                Box::into_raw(Box::new(tx)).cast(),
             )
         }
         let ret: Result<u64, QmiError> = rx.await.map_err(|_| QmiError::cb_droped())?;
@@ -396,6 +362,14 @@ unsafe extern "C" fn event_report_cb(
     }
 }
 
+// Lauched when no more instances of GObject references QmiClientWms exists
+unsafe extern "C" fn destroy_event_report_data(data: *mut c_void, _closure: *mut GClosure) {
+    tracing::debug!("destroy_event_report_data");
+    drop(Box::from_raw(
+        data.cast::<UnboundedSender<(Vec<u8>, WmsMessageFormat)>>(),
+    ));
+}
+
 unsafe extern "C" fn set_event_report_cb(
     device: *mut GObject,
     res: *mut GAsyncResult,
@@ -404,7 +378,7 @@ unsafe extern "C" fn set_event_report_cb(
     let sender = Box::from_raw(user_data as *mut oneshot::Sender<QmiResult<()>>);
     let mut error: *mut GError = null_mut();
 
-    let output = qmi_client_wms_set_event_report_finish(device as _, res, &mut error);
+    let output = qmi_client_wms_set_event_report_finish(device.cast(), res, &mut error);
     if output.is_null() {
         let _drop = sender
             .send(Err((error, "wms event report").into()))
@@ -431,7 +405,7 @@ unsafe extern "C" fn get_routes_cb(
     let mut error: *mut GError = null_mut();
 
     let get_routes_output: *mut QmiMessageWmsGetRoutesOutput =
-        qmi_client_wms_get_routes_finish(client as _, res, &mut error);
+        qmi_client_wms_get_routes_finish(client.cast(), res, &mut error);
     if get_routes_output.is_null() {
         let _drop = sender
             .send(Err((error, "get routes").into()))
@@ -448,7 +422,7 @@ unsafe extern "C" fn get_routes_cb(
     let output = match ret {
         GFALSE => Err((error, "wms event report").into()),
         _ => Ok(std::slice::from_raw_parts(
-            (*value_route_list).data as *const QmiMessageWmsGetRoutesOutputRouteListElement,
+            (*value_route_list).data.cast::<QmiMessageWmsGetRoutesOutputRouteListElement>(),
             (*value_route_list).len as usize,
         )
         .iter()
@@ -468,7 +442,7 @@ unsafe extern "C" fn set_routes_cb(
 
     let mut error: *mut GError = null_mut();
 
-    let ret = qmi_client_wms_set_routes_finish(client as _, res, &mut error);
+    let ret = qmi_client_wms_set_routes_finish(client.cast(), res, &mut error);
 
     let output = match ret.is_null() {
         true => Err((error, "set routes").into()),
@@ -487,7 +461,7 @@ unsafe extern "C" fn send_sms_cb(
 
     let mut error: *mut GError = null_mut();
 
-    let raw = qmi_client_wms_raw_send_finish(client as _, res, &mut error);
+    let raw = qmi_client_wms_raw_send_finish(client.cast(), res, &mut error);
     let output = if raw.is_null() {
         Err((error, "send_sms_cb 1").into())
     } else {

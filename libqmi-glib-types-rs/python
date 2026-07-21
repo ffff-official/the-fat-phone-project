@@ -12,7 +12,6 @@ root = ET.parse(gir).getroot()
 accepted = {
     "enumeration",
     "bitfield",
-    "record",
 }
 
 types = []
