@@ -24,7 +24,7 @@ impl Drop for NasClient {
     fn drop(&mut self) {
         tracing::trace!("NAS CLIENT is droped !");
         unsafe {
-            g_object_unref(self.client.as_ptr() as _);
+            g_object_unref(self.client.as_ptr().cast());
         }
     }
 }
@@ -32,7 +32,7 @@ impl Drop for NasClient {
 impl Clone for NasClient {
     fn clone(&self) -> Self {
         unsafe {
-            g_object_ref(self.client.as_ptr() as _);
+            g_object_ref(self.client.as_ptr().cast());
         }
         Self {
             client: self.client,
@@ -59,7 +59,7 @@ impl NasClient {
                 OPERATION_TIMEOUT,
                 null_mut(),
                 Some(allocate_client_cb),
-                Box::into_raw(Box::new(tx)) as *mut c_void,
+                Box::into_raw(Box::new(tx)).cast(),
             )
         };
         match rx.await.map_err(|_| QmiError::cb_droped())? {
@@ -73,7 +73,7 @@ impl NasClient {
 
     /// Asynchronously releases the [`NasClient`] from the [`Device`].
     pub async fn close(self) -> QmiResult<()> {
-        let ref_count = unsafe { *(self.client.as_ptr() as *mut GObject) }.ref_count;
+        let ref_count = unsafe { *(self.client.as_ptr().cast::<GObject>()) }.ref_count;
         if ref_count != 2 {
             Err(QmiError::new(
                 format!("can't close ref count = {}", ref_count),
@@ -85,12 +85,12 @@ impl NasClient {
         unsafe {
             qmi_device_release_client(
                 self.device.as_ptr(),
-                self.client.as_ptr() as _,
+                self.client.as_ptr().cast(),
                 DeviceReleaseClientFlags::RELEASE_CID.into_glib(),
                 OPERATION_TIMEOUT,
                 null_mut(),
                 Some(release_client_cb),
-                Box::into_raw(Box::new(tx)) as *mut c_void,
+                Box::into_raw(Box::new(tx)).cast(),
             );
         }
         rx.await.map_err(|_| QmiError::cb_droped())?
@@ -102,12 +102,13 @@ unsafe extern "C" fn allocate_client_cb(
     res: *mut GAsyncResult,
     user_data: *mut c_void,
 ) {
-    let sender = Box::from_raw(user_data as *mut oneshot::Sender<QmiResult<NonNull<QmiClientNas>>>);
+    let sender =
+        Box::from_raw(user_data.cast::<oneshot::Sender<QmiResult<NonNull<QmiClientNas>>>>());
     let mut error: *mut GError = null_mut();
 
-    let client = qmi_device_allocate_client_finish(device as *mut QmiDevice, res, &mut error);
+    let client = qmi_device_allocate_client_finish(device.cast(), res, &mut error);
 
-    let output = match NonNull::new(client as _) {
+    let output = match NonNull::new(client.cast()) {
         None => Err((error, "new nas client").into()),
         Some(client) => Ok(client),
     };
@@ -119,10 +120,10 @@ unsafe extern "C" fn release_client_cb(
     res: *mut GAsyncResult,
     user_data: *mut c_void,
 ) {
-    let sender = Box::from_raw(user_data as *mut oneshot::Sender<QmiResult<()>>);
+    let sender = Box::from_raw(user_data.cast::<oneshot::Sender<QmiResult<()>>>());
     let mut error: *mut GError = null_mut();
 
-    let ret = qmi_device_release_client_finish(device as *mut QmiDevice, res, &mut error);
+    let ret = qmi_device_release_client_finish(device.cast(), res, &mut error);
 
     let output = match ret {
         GFALSE => Err((error, "release nas client").into()),

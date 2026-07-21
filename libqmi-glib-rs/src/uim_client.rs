@@ -22,6 +22,7 @@ use std::ptr::NonNull;
 use std::ptr::null_mut;
 
 type CardStatusOutputElem = MessageUimGetCardStatusOutputCardStatusCardsElement;
+type QmiCardStatusOutputElem = QmiMessageUimGetCardStatusOutputCardStatusCardsElement;
 
 #[derive(Debug)]
 pub struct UimClient {
@@ -33,7 +34,7 @@ impl Drop for UimClient {
     fn drop(&mut self) {
         tracing::trace!("UIM CLIENT is droped !");
         unsafe {
-            g_object_unref(self.client.as_ptr() as _);
+            g_object_unref(self.client.as_ptr().cast());
         }
     }
 }
@@ -41,7 +42,7 @@ impl Drop for UimClient {
 impl Clone for UimClient {
     fn clone(&self) -> Self {
         unsafe {
-            g_object_ref(self.client.as_ptr() as _);
+            g_object_ref(self.client.as_ptr().cast());
         }
         Self {
             client: self.client,
@@ -68,7 +69,7 @@ impl UimClient {
                 OPERATION_TIMEOUT,
                 null_mut(),
                 Some(allocate_client_cb),
-                Box::into_raw(Box::new(tx)) as *mut c_void,
+                Box::into_raw(Box::new(tx)).cast(),
             )
         };
         match rx.await.map_err(|_| QmiError::cb_droped())? {
@@ -82,7 +83,7 @@ impl UimClient {
 
     /// Asynchronously releases the [`UimClient`] from the [`Device`].
     pub async fn close(self) -> QmiResult<()> {
-        let ref_count = unsafe { *(self.client.as_ptr() as *mut GObject) }.ref_count;
+        let ref_count = unsafe { *(self.client.as_ptr().cast::<GObject>()) }.ref_count;
         if ref_count != 2 {
             Err(QmiError::new(
                 format!("can't close ref count = {}", ref_count),
@@ -99,7 +100,7 @@ impl UimClient {
                 OPERATION_TIMEOUT,
                 null_mut(),
                 Some(release_client_cb),
-                Box::into_raw(Box::new(tx)) as *mut c_void,
+                Box::into_raw(Box::new(tx)).cast(),
             );
         }
         rx.await.map_err(|_| QmiError::cb_droped())?
@@ -115,7 +116,7 @@ impl UimClient {
                 OPERATION_TIMEOUT,
                 null_mut(),
                 Some(get_card_status_cb),
-                Box::into_raw(Box::new(tx)) as *mut c_void,
+                Box::into_raw(Box::new(tx)).cast(),
             );
         }
 
@@ -165,7 +166,7 @@ impl UimClient {
                             OPERATION_TIMEOUT,
                             null_mut(),
                             Some(verify_pin_cb),
-                            Box::into_raw(Box::new(tx)) as *mut c_void,
+                            Box::into_raw(Box::new(tx)).cast(),
                         );
                     }
                 }
@@ -184,13 +185,14 @@ unsafe extern "C" fn allocate_client_cb(
     res: *mut GAsyncResult,
     user_data: *mut c_void,
 ) {
-    let sender = Box::from_raw(user_data as *mut oneshot::Sender<QmiResult<NonNull<QmiClientUim>>>);
+    let sender =
+        Box::from_raw(user_data.cast::<oneshot::Sender<QmiResult<NonNull<QmiClientUim>>>>());
 
     let mut error: *mut GError = null_mut();
 
-    let client = qmi_device_allocate_client_finish(device as *mut QmiDevice, res, &mut error);
+    let client = qmi_device_allocate_client_finish(device.cast(), res, &mut error);
 
-    let output = match NonNull::new(client as _) {
+    let output = match NonNull::new(client.cast()) {
         None => Err((error, "new uim client").into()),
         Some(client) => Ok(client),
     };
@@ -202,10 +204,10 @@ unsafe extern "C" fn release_client_cb(
     res: *mut GAsyncResult,
     user_data: *mut c_void,
 ) {
-    let sender = Box::from_raw(user_data as *mut oneshot::Sender<QmiResult<()>>);
+    let sender = Box::from_raw(user_data.cast::<oneshot::Sender<QmiResult<()>>>());
     let mut error: *mut GError = null_mut();
 
-    let ret = qmi_device_release_client_finish(device as *mut QmiDevice, res, &mut error);
+    let ret = qmi_device_release_client_finish(device.cast(), res, &mut error);
 
     let output = match ret {
         GFALSE => Err((error, "release uim client").into()),
@@ -215,15 +217,15 @@ unsafe extern "C" fn release_client_cb(
 }
 
 unsafe extern "C" fn get_card_status_cb(
-    device: *mut GObject,
+    client: *mut GObject,
     res: *mut GAsyncResult,
     user_data: *mut c_void,
 ) {
     let sender =
-        Box::from_raw(user_data as *mut oneshot::Sender<QmiResult<Vec<CardStatusOutputElem>>>);
+        Box::from_raw(user_data.cast::<oneshot::Sender<QmiResult<Vec<CardStatusOutputElem>>>>());
     let mut error: *mut GError = null_mut();
 
-    let output = qmi_client_uim_get_card_status_finish(device as _, res, &mut error);
+    let output = qmi_client_uim_get_card_status_finish(client.cast(), res, &mut error);
     let output = match output.is_null() {
         true => Err((error, "get card status cb finish").into()),
         false => {
@@ -255,7 +257,7 @@ unsafe extern "C" fn get_card_status_cb(
                         }
                         _ => {
                             let slice = std::slice::from_raw_parts(
-                                (*cards).data as *const QmiMessageUimGetCardStatusOutputCardStatusCardsElement,
+                                (*cards).data.cast::<QmiCardStatusOutputElem>(),
                                 (*cards).len as usize,
                             );
                             let final_output = slice
@@ -276,14 +278,14 @@ unsafe extern "C" fn get_card_status_cb(
 }
 
 unsafe extern "C" fn verify_pin_cb(
-    device: *mut GObject,
+    client: *mut GObject,
     res: *mut GAsyncResult,
     user_data: *mut c_void,
 ) {
-    let sender = Box::from_raw(user_data as *mut oneshot::Sender<QmiResult<u8>>);
+    let sender = Box::from_raw(user_data.cast::<oneshot::Sender<QmiResult<u8>>>());
     let mut error: *mut GError = null_mut();
 
-    let output = qmi_client_uim_verify_pin_finish(device as _, res, &mut error);
+    let output = qmi_client_uim_verify_pin_finish(client.cast(), res, &mut error);
     let output = match output.is_null() {
         true => Err((error, "verify pin cb finish").into()),
         false => {

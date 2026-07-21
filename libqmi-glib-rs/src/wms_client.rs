@@ -19,6 +19,7 @@ use std::ffi::c_void;
 use std::ptr::{NonNull, null_mut};
 
 type Route = MessageWmsGetRoutesOutputRouteListElement;
+type QmiRoute = QmiMessageWmsGetRoutesOutputRouteListElement;
 
 /// A client for interacting with the Wireless Messaging Service (WMS) interface of a QMI device.
 #[derive(Debug)]
@@ -286,12 +287,13 @@ unsafe extern "C" fn allocate_client_cb(
     res: *mut GAsyncResult,
     user_data: *mut c_void,
 ) {
-    let sender = Box::from_raw(user_data as *mut oneshot::Sender<QmiResult<NonNull<QmiClientWms>>>);
+    let sender =
+        Box::from_raw(user_data.cast::<oneshot::Sender<QmiResult<NonNull<QmiClientWms>>>>());
     let mut error: *mut GError = null_mut();
 
-    let client = qmi_device_allocate_client_finish(device as *mut QmiDevice, res, &mut error);
+    let client = qmi_device_allocate_client_finish(device.cast(), res, &mut error);
 
-    let output = match NonNull::new(client as _) {
+    let output = match NonNull::new(client.cast()) {
         None => Err((error, "new wms client").into()),
         Some(client) => Ok(client),
     };
@@ -303,11 +305,11 @@ unsafe extern "C" fn release_client_cb(
     res: *mut GAsyncResult,
     user_data: *mut c_void,
 ) {
-    let sender = Box::from_raw(user_data as *mut oneshot::Sender<QmiResult<()>>);
+    let sender = Box::from_raw(user_data.cast::<oneshot::Sender<QmiResult<()>>>());
 
     let mut error: *mut GError = null_mut();
 
-    let ret = qmi_device_release_client_finish(device as *mut QmiDevice, res, &mut error);
+    let ret = qmi_device_release_client_finish(device.cast(), res, &mut error);
 
     let output = match ret {
         GFALSE => Err((error, "release wms client").into()),
@@ -342,13 +344,13 @@ unsafe extern "C" fn event_report_cb(
         tracing::error!("{}", Into::<QmiError>::into((error, "message event TPDU")));
     } else {
         let data = {
-            let ptr = (*value_transfer_route_mt_message_raw_data).data as *const u8;
+            let ptr = (*value_transfer_route_mt_message_raw_data).data.cast();
             let len = (*value_transfer_route_mt_message_raw_data).len as usize;
             std::slice::from_raw_parts(ptr, len)
         }
         .to_vec();
 
-        let sender = &*(user_data as *const UnboundedSender<(Vec<u8>, WmsMessageFormat)>);
+        let sender = &*(user_data.cast::<UnboundedSender<(Vec<u8>, WmsMessageFormat)>>());
 
         if sender
             .unbounded_send((
@@ -371,14 +373,14 @@ unsafe extern "C" fn destroy_event_report_data(data: *mut c_void, _closure: *mut
 }
 
 unsafe extern "C" fn set_event_report_cb(
-    device: *mut GObject,
+    client: *mut GObject,
     res: *mut GAsyncResult,
     user_data: *mut c_void,
 ) {
-    let sender = Box::from_raw(user_data as *mut oneshot::Sender<QmiResult<()>>);
+    let sender = Box::from_raw(user_data.cast::<oneshot::Sender<QmiResult<()>>>());
     let mut error: *mut GError = null_mut();
 
-    let output = qmi_client_wms_set_event_report_finish(device.cast(), res, &mut error);
+    let output = qmi_client_wms_set_event_report_finish(client.cast(), res, &mut error);
     if output.is_null() {
         let _drop = sender
             .send(Err((error, "wms event report").into()))
@@ -401,7 +403,7 @@ unsafe extern "C" fn get_routes_cb(
     res: *mut GAsyncResult,
     user_data: *mut c_void,
 ) {
-    let sender = Box::from_raw(user_data as *mut oneshot::Sender<QmiResult<Vec<Route>>>);
+    let sender = Box::from_raw(user_data.cast::<oneshot::Sender<QmiResult<Vec<Route>>>>());
     let mut error: *mut GError = null_mut();
 
     let get_routes_output: *mut QmiMessageWmsGetRoutesOutput =
@@ -422,7 +424,7 @@ unsafe extern "C" fn get_routes_cb(
     let output = match ret {
         GFALSE => Err((error, "wms event report").into()),
         _ => Ok(std::slice::from_raw_parts(
-            (*value_route_list).data.cast::<QmiMessageWmsGetRoutesOutputRouteListElement>(),
+            (*value_route_list).data.cast::<QmiRoute>(),
             (*value_route_list).len as usize,
         )
         .iter()
@@ -438,7 +440,7 @@ unsafe extern "C" fn set_routes_cb(
     res: *mut GAsyncResult,
     user_data: *mut c_void,
 ) {
-    let sender = Box::from_raw(user_data as *mut oneshot::Sender<QmiResult<()>>);
+    let sender = Box::from_raw(user_data.cast::<oneshot::Sender<QmiResult<()>>>());
 
     let mut error: *mut GError = null_mut();
 
@@ -457,7 +459,7 @@ unsafe extern "C" fn send_sms_cb(
     res: *mut GAsyncResult,
     user_data: *mut c_void,
 ) {
-    let sender = Box::from_raw(user_data as *mut oneshot::Sender<QmiResult<u64>>);
+    let sender = Box::from_raw(user_data.cast::<oneshot::Sender<QmiResult<u64>>>());
 
     let mut error: *mut GError = null_mut();
 

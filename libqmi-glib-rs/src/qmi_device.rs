@@ -21,7 +21,7 @@ impl Drop for Device {
     fn drop(&mut self) {
         tracing::debug!("QMI DEVICE is droped !");
         unsafe {
-            g_object_unref(self.0.as_ptr() as _);
+            g_object_unref(self.0.as_ptr().cast());
         }
     }
 }
@@ -29,7 +29,7 @@ impl Drop for Device {
 impl Clone for Device {
     fn clone(&self) -> Self {
         unsafe {
-            g_object_ref(self.0.as_ptr() as _);
+            g_object_ref(self.0.as_ptr().cast());
         }
         Self(self.0)
     }
@@ -52,7 +52,7 @@ impl Device {
                 file,
                 null_mut(),
                 Some(device_new_cb),
-                Box::into_raw(Box::new(tx)) as *mut c_void,
+                Box::into_raw(Box::new(tx)).cast(),
             )
         };
         rx.await.map_err(|_| QmiError::cb_droped())?
@@ -69,7 +69,7 @@ impl Device {
                 OPERATION_TIMEOUT,
                 null_mut(),
                 Some(device_open_cb),
-                Box::into_raw(Box::new(tx)) as *mut c_void,
+                Box::into_raw(Box::new(tx)).cast(),
             )
         };
         rx.await.map_err(|_| QmiError::cb_droped())?
@@ -85,7 +85,7 @@ impl Device {
                 OPERATION_TIMEOUT,
                 null_mut(),
                 Some(device_close_cb),
-                Box::into_raw(Box::new(tx)) as *mut c_void,
+                Box::into_raw(Box::new(tx)).cast(),
             );
         }
         rx.await.map_err(|_| QmiError::cb_droped())?
@@ -140,7 +140,7 @@ unsafe extern "C" fn device_new_cb(
     res: *mut GAsyncResult,
     user_data: *mut c_void,
 ) {
-    let sender = Box::from_raw(user_data as *mut oneshot::Sender<QmiResult<Device>>);
+    let sender = Box::from_raw(user_data.cast::<oneshot::Sender<QmiResult<Device>>>());
 
     let mut error: *mut GError = null_mut();
 
@@ -158,11 +158,11 @@ unsafe extern "C" fn device_open_cb(
     res: *mut GAsyncResult,
     user_data: *mut c_void,
 ) {
-    let sender = Box::from_raw(user_data as *mut oneshot::Sender<QmiResult<()>>);
+    let sender = Box::from_raw(user_data.cast::<oneshot::Sender<QmiResult<()>>>());
 
     let mut error: *mut GError = null_mut();
 
-    let ret = qmi_device_open_finish(device as *mut QmiDevice, res, &mut error);
+    let ret = qmi_device_open_finish(device.cast(), res, &mut error);
 
     let output = match ret {
         GFALSE => Err((error, "open device").into()),
@@ -176,11 +176,11 @@ unsafe extern "C" fn device_close_cb(
     res: *mut GAsyncResult,
     user_data: *mut c_void,
 ) {
-    let sender = Box::from_raw(user_data as *mut oneshot::Sender<QmiResult<()>>);
+    let sender = Box::from_raw(user_data.cast::<oneshot::Sender<QmiResult<()>>>());
 
     let mut error: *mut GError = null_mut();
 
-    let ret = qmi_device_close_finish(device as *mut QmiDevice, res, &mut error);
+    let ret = qmi_device_close_finish(device.cast(), res, &mut error);
 
     let output = match ret {
         GFALSE => Err((error, "close device").into()),

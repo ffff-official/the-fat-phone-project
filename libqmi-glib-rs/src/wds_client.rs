@@ -31,7 +31,7 @@ impl Drop for WdsClient {
     fn drop(&mut self) {
         tracing::trace!("WDS CLIENT is droped !");
         unsafe {
-            g_object_unref(self.client.as_ptr() as _);
+            g_object_unref(self.client.as_ptr().cast());
         }
     }
 }
@@ -39,7 +39,7 @@ impl Drop for WdsClient {
 impl Clone for WdsClient {
     fn clone(&self) -> Self {
         unsafe {
-            g_object_ref(self.client.as_ptr() as _);
+            g_object_ref(self.client.as_ptr().cast());
         }
         Self {
             client: self.client,
@@ -67,7 +67,7 @@ impl WdsClient {
                 OPERATION_TIMEOUT,
                 null_mut(),
                 Some(allocate_client_cb),
-                Box::into_raw(Box::new(tx)) as *mut c_void,
+                Box::into_raw(Box::new(tx)).cast(),
             )
         };
         match rx.await.map_err(|_| QmiError::cb_droped())? {
@@ -82,7 +82,7 @@ impl WdsClient {
 
     /// Asynchronously releases the [`WdsClient`] from the [`Device`].
     pub async fn close(self) -> QmiResult<()> {
-        let ref_count = unsafe { *(self.client.as_ptr() as *mut GObject) }.ref_count;
+        let ref_count = unsafe { *(self.client.as_ptr().cast::<GObject>()) }.ref_count;
         if ref_count != 2 {
             Err(QmiError::new(
                 format!("can't close ref count = {}", ref_count),
@@ -94,12 +94,12 @@ impl WdsClient {
         unsafe {
             qmi_device_release_client(
                 self.device.as_ptr(),
-                self.client.as_ptr() as _,
+                self.client.as_ptr().cast(),
                 DeviceReleaseClientFlags::RELEASE_CID.into_glib(),
                 OPERATION_TIMEOUT,
                 null_mut(),
                 Some(release_client_cb),
-                Box::into_raw(Box::new(tx)) as *mut c_void,
+                Box::into_raw(Box::new(tx)).cast(),
             );
         }
         rx.await.map_err(|_| QmiError::cb_droped())?
@@ -139,7 +139,7 @@ impl WdsClient {
                         OPERATION_TIMEOUT,
                         null_mut(),
                         Some(start_network_cb),
-                        Box::into_raw(Box::new(tx)) as *mut c_void,
+                        Box::into_raw(Box::new(tx)).cast(),
                     );
                     qmi_message_wds_start_network_input_unref(input);
                 }
@@ -180,7 +180,7 @@ impl WdsClient {
                     OPERATION_TIMEOUT,
                     null_mut(),
                     Some(stop_network_cb),
-                    Box::into_raw(Box::new(tx)) as *mut c_void,
+                    Box::into_raw(Box::new(tx)).cast(),
                 );
             }
             let ret = rx.await;
@@ -204,7 +204,7 @@ impl WdsClient {
                 OPERATION_TIMEOUT,
                 null_mut(),
                 Some(get_packet_service_status_cb),
-                Box::into_raw(Box::new(tx)) as *mut c_void,
+                Box::into_raw(Box::new(tx)).cast(),
             )
         }
         rx.await.map_err(|_| QmiError::cb_droped())?
@@ -240,7 +240,7 @@ impl WdsClient {
                 OPERATION_TIMEOUT,
                 null_mut(),
                 Some(get_current_settings_cb),
-                Box::into_raw(Box::new(tx)) as *mut c_void,
+                Box::into_raw(Box::new(tx)).cast(),
             );
         }
         let ret = rx.await;
@@ -256,12 +256,13 @@ unsafe extern "C" fn allocate_client_cb(
     res: *mut GAsyncResult,
     user_data: *mut c_void,
 ) {
-    let sender = Box::from_raw(user_data as *mut oneshot::Sender<QmiResult<NonNull<QmiClientWds>>>);
+    let sender =
+        Box::from_raw(user_data.cast::<oneshot::Sender<QmiResult<NonNull<QmiClientWds>>>>());
     let mut error: *mut GError = null_mut();
 
-    let client = qmi_device_allocate_client_finish(device as *mut QmiDevice, res, &mut error);
+    let client = qmi_device_allocate_client_finish(device.cast(), res, &mut error);
 
-    let output = match NonNull::new(client as _) {
+    let output = match NonNull::new(client.cast()) {
         None => Err((error, "new wds client").into()),
         Some(client) => Ok(client),
     };
@@ -273,10 +274,10 @@ unsafe extern "C" fn release_client_cb(
     res: *mut GAsyncResult,
     user_data: *mut c_void,
 ) {
-    let sender = Box::from_raw(user_data as *mut oneshot::Sender<QmiResult<()>>);
+    let sender = Box::from_raw(user_data.cast::<oneshot::Sender<QmiResult<()>>>());
     let mut error: *mut GError = null_mut();
 
-    let ret = qmi_device_release_client_finish(device as *mut QmiDevice, res, &mut error);
+    let ret = qmi_device_release_client_finish(device.cast(), res, &mut error);
 
     let output = match ret {
         GFALSE => Err((error, "release wds client").into()),
@@ -286,14 +287,14 @@ unsafe extern "C" fn release_client_cb(
 }
 
 unsafe extern "C" fn start_network_cb(
-    device: *mut GObject,
+    client: *mut GObject,
     res: *mut GAsyncResult,
     user_data: *mut c_void,
 ) {
-    let sender = Box::from_raw(user_data as *mut oneshot::Sender<QmiResult<u32>>);
+    let sender = Box::from_raw(user_data.cast::<oneshot::Sender<QmiResult<u32>>>());
     let mut error: *mut GError = null_mut();
 
-    let output = qmi_client_wds_start_network_finish(device as _, res, &mut error);
+    let output = qmi_client_wds_start_network_finish(client.cast(), res, &mut error);
     let output = match output.is_null() {
         true => Err((error, "start network cb finish").into()),
         false => {
@@ -312,14 +313,14 @@ unsafe extern "C" fn start_network_cb(
 }
 
 unsafe extern "C" fn stop_network_cb(
-    device: *mut GObject,
+    client: *mut GObject,
     res: *mut GAsyncResult,
     user_data: *mut c_void,
 ) {
-    let sender = Box::from_raw(user_data as *mut oneshot::Sender<QmiResult<()>>);
+    let sender = Box::from_raw(user_data.cast::<oneshot::Sender<QmiResult<()>>>());
     let mut error: *mut GError = null_mut();
 
-    let output = qmi_client_wds_stop_network_finish(device as _, res, &mut error);
+    let output = qmi_client_wds_stop_network_finish(client.cast(), res, &mut error);
     let output = match output.is_null() {
         true => Err((error, "stop network cb finish").into()),
         false => {
@@ -335,15 +336,15 @@ unsafe extern "C" fn stop_network_cb(
 }
 
 unsafe extern "C" fn get_packet_service_status_cb(
-    device: *mut GObject,
+    client: *mut GObject,
     res: *mut GAsyncResult,
     user_data: *mut c_void,
 ) {
-    let sender = Box::from_raw(user_data as *mut oneshot::Sender<QmiResult<WdsConnectionStatus>>);
+    let sender = Box::from_raw(user_data.cast::<oneshot::Sender<QmiResult<WdsConnectionStatus>>>());
     let mut error: *mut GError = null_mut();
 
     let status_output =
-        qmi_client_wds_get_packet_service_status_finish(device as _, res, &mut error);
+        qmi_client_wds_get_packet_service_status_finish(client.cast(), res, &mut error);
     let output = match status_output.is_null() {
         true => Err((error, "packet service status cb get").into()),
         false => {
@@ -364,13 +365,13 @@ unsafe extern "C" fn get_packet_service_status_cb(
 }
 
 unsafe extern "C" fn get_current_settings_cb(
-    device: *mut GObject,
+    client: *mut GObject,
     res: *mut GAsyncResult,
     user_data: *mut c_void,
 ) {
-    let sender = Box::from_raw(user_data as *mut oneshot::Sender<QmiResult<Ipv4NetworkSettings>>);
+    let sender = Box::from_raw(user_data.cast::<oneshot::Sender<QmiResult<Ipv4NetworkSettings>>>());
     let mut error: *mut GError = null_mut();
-    let status_output = qmi_client_wds_get_current_settings_finish(device as _, res, &mut error);
+    let status_output = qmi_client_wds_get_current_settings_finish(client.cast(), res, &mut error);
     let ipv4_network_settings = match status_output.is_null() {
         true => Err((error, "get_current_settings_cb").into()),
         false => {
