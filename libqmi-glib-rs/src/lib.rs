@@ -43,6 +43,8 @@
 //!     }
 //! }
 //! ```
+#![allow(unsafe_op_in_unsafe_fn)] // Warnings on unsafe_op_in_unsafe_fn is a shitty idea for a crate of this kind.
+
 pub mod dms_client;
 pub mod nas_client;
 pub mod pds_client;

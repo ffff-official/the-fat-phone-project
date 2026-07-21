@@ -143,7 +143,7 @@ impl WmsClient {
                     self.client.as_ptr() as _,
                     c"event-report".as_ptr(),
                     Some(std::mem::transmute(
-                        event_report_cb as extern "C" fn(_, _, _),
+                        event_report_cb as unsafe extern "C" fn(_, _, _),
                     )),
                     mpsc_ptr,
                     None,
@@ -315,7 +315,42 @@ impl WmsClient {
     }
 }
 
-extern "C" fn event_report_cb(
+unsafe extern "C" fn allocate_client_cb(
+    device: *mut GObject,
+    res: *mut GAsyncResult,
+    user_data: *mut c_void,
+) {
+    let sender = Box::from_raw(user_data as *mut oneshot::Sender<QmiResult<NonNull<QmiClientWms>>>);
+    let mut error: *mut GError = null_mut();
+
+    let client = qmi_device_allocate_client_finish(device as *mut QmiDevice, res, &mut error);
+
+    let output = match NonNull::new(client as _) {
+        None => Err((error, "new wms client").into()),
+        Some(client) => Ok(client),
+    };
+    drop(sender.send(output).inspect_err(cannot_send));
+}
+
+unsafe extern "C" fn release_client_cb(
+    device: *mut GObject,
+    res: *mut GAsyncResult,
+    user_data: *mut c_void,
+) {
+    let sender = Box::from_raw(user_data as *mut oneshot::Sender<QmiResult<()>>);
+
+    let mut error: *mut GError = null_mut();
+
+    let ret = qmi_device_release_client_finish(device as *mut QmiDevice, res, &mut error);
+
+    let output = match ret {
+        GFALSE => Err((error, "release wms client").into()),
+        _ => Ok(()),
+    };
+    drop(sender.send(output).inspect_err(cannot_send));
+}
+
+unsafe extern "C" fn event_report_cb(
     _client: *mut GObject,
     output: *mut QmiIndicationWmsEventReportOutput,
     user_data: *mut c_void,
@@ -329,33 +364,31 @@ extern "C" fn event_report_cb(
     let mut value_transfer_route_mt_message_format = 0;
     let mut value_transfer_route_mt_message_raw_data: *mut GArray = null_mut();
 
-    let ret = unsafe {
-        qmi_indication_wms_event_report_output_get_transfer_route_mt_message(
-            output,
-            &mut _value_transfer_route_mt_message_ack_indicator,
-            &mut _value_transfer_route_mt_message_transaction_id,
-            &mut value_transfer_route_mt_message_format,
-            &mut value_transfer_route_mt_message_raw_data,
-            &mut error,
-        )
-    };
+    let ret = qmi_indication_wms_event_report_output_get_transfer_route_mt_message(
+        output,
+        &mut _value_transfer_route_mt_message_ack_indicator,
+        &mut _value_transfer_route_mt_message_transaction_id,
+        &mut value_transfer_route_mt_message_format,
+        &mut value_transfer_route_mt_message_raw_data,
+        &mut error,
+    );
     if ret == GFALSE {
         tracing::error!("{}", Into::<QmiError>::into((error, "message event TPDU")));
     } else {
-        let data = unsafe {
+        let data = {
             let ptr = (*value_transfer_route_mt_message_raw_data).data as *const u8;
             let len = (*value_transfer_route_mt_message_raw_data).len as usize;
             std::slice::from_raw_parts(ptr, len)
         }
         .to_vec();
 
-        let sender =
-            unsafe { &*(user_data as *const UnboundedSender<(Vec<u8>, WmsMessageFormat)>) };
+        let sender = &*(user_data as *const UnboundedSender<(Vec<u8>, WmsMessageFormat)>);
 
         if sender
-            .unbounded_send((data, unsafe {
-                WmsMessageFormat::from_glib(value_transfer_route_mt_message_format)
-            }))
+            .unbounded_send((
+                data,
+                WmsMessageFormat::from_glib(value_transfer_route_mt_message_format),
+            ))
             .is_err()
         {
             tracing::warn!("WMS event receiver has been dropped");
@@ -363,54 +396,15 @@ extern "C" fn event_report_cb(
     }
 }
 
-extern "C" fn allocate_client_cb(
+unsafe extern "C" fn set_event_report_cb(
     device: *mut GObject,
     res: *mut GAsyncResult,
     user_data: *mut c_void,
 ) {
-    let sender = unsafe {
-        Box::from_raw(user_data as *mut oneshot::Sender<QmiResult<NonNull<QmiClientWms>>>)
-    };
-
+    let sender = Box::from_raw(user_data as *mut oneshot::Sender<QmiResult<()>>);
     let mut error: *mut GError = null_mut();
 
-    let client =
-        unsafe { qmi_device_allocate_client_finish(device as *mut QmiDevice, res, &mut error) };
-
-    let output = match NonNull::new(client as _) {
-        None => Err((error, "new wms client").into()),
-        Some(client) => Ok(client),
-    };
-    drop(sender.send(output).inspect_err(cannot_send));
-}
-extern "C" fn release_client_cb(
-    device: *mut GObject,
-    res: *mut GAsyncResult,
-    user_data: *mut c_void,
-) {
-    let sender = unsafe { Box::from_raw(user_data as *mut oneshot::Sender<QmiResult<()>>) };
-
-    let mut error: *mut GError = null_mut();
-
-    let ret =
-        unsafe { qmi_device_release_client_finish(device as *mut QmiDevice, res, &mut error) };
-
-    let output = match ret {
-        GFALSE => Err((error, "release wms client").into()),
-        _ => Ok(()),
-    };
-    drop(sender.send(output).inspect_err(cannot_send));
-}
-extern "C" fn set_event_report_cb(
-    device: *mut GObject,
-    res: *mut GAsyncResult,
-    user_data: *mut c_void,
-) {
-    let sender = unsafe { Box::from_raw(user_data as *mut oneshot::Sender<QmiResult<()>>) };
-
-    let mut error: *mut GError = null_mut();
-
-    let output = unsafe { qmi_client_wms_set_event_report_finish(device as _, res, &mut error) };
+    let output = qmi_client_wms_set_event_report_finish(device as _, res, &mut error);
     if output.is_null() {
         let _drop = sender
             .send(Err((error, "wms event report").into()))
@@ -418,10 +412,8 @@ extern "C" fn set_event_report_cb(
         return;
     }
 
-    let ret = unsafe { qmi_message_wms_set_event_report_output_get_result(output, &mut error) };
-    unsafe {
-        qmi_message_wms_set_event_report_output_unref(output);
-    }
+    let ret = qmi_message_wms_set_event_report_output_get_result(output, &mut error);
+    qmi_message_wms_set_event_report_output_unref(output);
 
     let output: Result<(), _> = match ret {
         GFALSE => Err((error, "wms event report").into()),
@@ -429,13 +421,17 @@ extern "C" fn set_event_report_cb(
     };
     drop(sender.send(output).inspect_err(cannot_send));
 }
-extern "C" fn get_routes_cb(client: *mut GObject, res: *mut GAsyncResult, user_data: *mut c_void) {
-    let sender = unsafe { Box::from_raw(user_data as *mut oneshot::Sender<QmiResult<Vec<Route>>>) };
 
+unsafe extern "C" fn get_routes_cb(
+    client: *mut GObject,
+    res: *mut GAsyncResult,
+    user_data: *mut c_void,
+) {
+    let sender = Box::from_raw(user_data as *mut oneshot::Sender<QmiResult<Vec<Route>>>);
     let mut error: *mut GError = null_mut();
 
     let get_routes_output: *mut QmiMessageWmsGetRoutesOutput =
-        unsafe { qmi_client_wms_get_routes_finish(client as _, res, &mut error) };
+        qmi_client_wms_get_routes_finish(client as _, res, &mut error);
     if get_routes_output.is_null() {
         let _drop = sender
             .send(Err((error, "get routes").into()))
@@ -444,84 +440,90 @@ extern "C" fn get_routes_cb(client: *mut GObject, res: *mut GAsyncResult, user_d
     }
 
     let mut value_route_list: *mut GArray = null_mut();
-    let ret = unsafe {
-        qmi_message_wms_get_routes_output_get_route_list(
-            get_routes_output,
-            &mut value_route_list,
-            &mut error,
-        )
-    };
+    let ret = qmi_message_wms_get_routes_output_get_route_list(
+        get_routes_output,
+        &mut value_route_list,
+        &mut error,
+    );
     let output = match ret {
         GFALSE => Err((error, "wms event report").into()),
-        _ => Ok(unsafe {
-            std::slice::from_raw_parts(
-                (*value_route_list).data as *const QmiMessageWmsGetRoutesOutputRouteListElement,
-                (*value_route_list).len as usize,
-            )
-            .iter()
-            .map(|route| (*route).into())
-        }
+        _ => Ok(std::slice::from_raw_parts(
+            (*value_route_list).data as *const QmiMessageWmsGetRoutesOutputRouteListElement,
+            (*value_route_list).len as usize,
+        )
+        .iter()
+        .map(|route| (*route).into())
         .collect::<Vec<Route>>()),
     };
-    unsafe { qmi_message_wms_get_routes_output_unref(get_routes_output) }
+    qmi_message_wms_get_routes_output_unref(get_routes_output);
     drop(sender.send(output).inspect_err(cannot_send));
 }
-extern "C" fn set_routes_cb(client: *mut GObject, res: *mut GAsyncResult, user_data: *mut c_void) {
-    let sender = unsafe { Box::from_raw(user_data as *mut oneshot::Sender<QmiResult<()>>) };
+
+unsafe extern "C" fn set_routes_cb(
+    client: *mut GObject,
+    res: *mut GAsyncResult,
+    user_data: *mut c_void,
+) {
+    let sender = Box::from_raw(user_data as *mut oneshot::Sender<QmiResult<()>>);
 
     let mut error: *mut GError = null_mut();
 
-    let ret = unsafe { qmi_client_wms_set_routes_finish(client as _, res, &mut error) };
+    let ret = qmi_client_wms_set_routes_finish(client as _, res, &mut error);
 
     let output = match ret.is_null() {
         true => Err((error, "set routes").into()),
         _ => Ok(()),
     };
-    unsafe { qmi_message_wms_set_routes_output_unref(ret) }
+    qmi_message_wms_set_routes_output_unref(ret);
     drop(sender.send(output).inspect_err(cannot_send));
 }
-extern "C" fn send_sms_cb(client: *mut GObject, res: *mut GAsyncResult, user_data: *mut c_void) {
-    let sender = unsafe { Box::from_raw(user_data as *mut oneshot::Sender<QmiResult<u64>>) };
+
+unsafe extern "C" fn send_sms_cb(
+    client: *mut GObject,
+    res: *mut GAsyncResult,
+    user_data: *mut c_void,
+) {
+    let sender = Box::from_raw(user_data as *mut oneshot::Sender<QmiResult<u64>>);
 
     let mut error: *mut GError = null_mut();
 
-    let raw = unsafe { qmi_client_wms_raw_send_finish(client as _, res, &mut error) };
+    let raw = qmi_client_wms_raw_send_finish(client as _, res, &mut error);
     let output = if raw.is_null() {
         Err((error, "send_sms_cb 1").into())
     } else {
-        let ret = unsafe { qmi_message_wms_raw_send_output_get_result(raw, &mut error) };
+        let ret = qmi_message_wms_raw_send_output_get_result(raw, &mut error);
         let ret = match ret {
             GFALSE => {
                 let mut rp_cause = 0;
                 let mut tp_cause = 0;
 
-                let has_cause = unsafe {
-                    qmi_message_wms_raw_send_output_get_gsm_wcdma_cause_info(
-                        raw,
-                        &mut rp_cause,
-                        &mut tp_cause,
-                        null_mut(),
-                    )
-                };
+                let has_cause = qmi_message_wms_raw_send_output_get_gsm_wcdma_cause_info(
+                    raw,
+                    &mut rp_cause,
+                    &mut tp_cause,
+                    null_mut(),
+                );
                 if has_cause != 0 {
-                    tracing::error!("{:?}", unsafe { WmsGsmUmtsRpCause::from_glib(rp_cause) });
-                    tracing::error!("{:?}", unsafe { WmsGsmUmtsTpCause::from_glib(tp_cause) });
+                    tracing::error!("{:?}", WmsGsmUmtsRpCause::from_glib(rp_cause));
+                    tracing::error!("{:?}", WmsGsmUmtsTpCause::from_glib(tp_cause));
                     tracing::error!("SMS sending failed with GSM/UMTS cause");
                 }
                 Err((error, "send_sms_cb 2").into())
             }
             _ => {
                 let mut message_id: guint16 = 0;
-                let ret = unsafe {
-                    qmi_message_wms_raw_send_output_get_message_id(raw, &mut message_id, &mut error)
-                };
+                let ret = qmi_message_wms_raw_send_output_get_message_id(
+                    raw,
+                    &mut message_id,
+                    &mut error,
+                );
                 match ret {
                     GFALSE => Err((error, "send_sms_cb 3").into()),
                     _ => Ok(message_id as u64),
                 }
             }
         };
-        unsafe { qmi_message_wms_raw_send_output_unref(raw) };
+        qmi_message_wms_raw_send_output_unref(raw);
         ret
     };
     drop(sender.send(output).inspect_err(cannot_send));

@@ -97,18 +97,16 @@ impl VoiceClient {
     }
 }
 
-extern "C" fn allocate_client_cb(
+unsafe extern "C" fn allocate_client_cb(
     device: *mut GObject,
     res: *mut GAsyncResult,
     user_data: *mut c_void,
 ) {
-    let sender = unsafe {
-        Box::from_raw(user_data as *mut oneshot::Sender<QmiResult<NonNull<QmiClientVoice>>>)
-    };
+    let sender =
+        Box::from_raw(user_data as *mut oneshot::Sender<QmiResult<NonNull<QmiClientVoice>>>);
     let mut error: *mut GError = null_mut();
 
-    let client =
-        unsafe { qmi_device_allocate_client_finish(device as *mut QmiDevice, res, &mut error) };
+    let client = qmi_device_allocate_client_finish(device as *mut QmiDevice, res, &mut error);
 
     let output = match NonNull::new(client as _) {
         None => Err((error, "new voice client").into()),
@@ -116,16 +114,16 @@ extern "C" fn allocate_client_cb(
     };
     drop(sender.send(output).inspect_err(cannot_send));
 }
-extern "C" fn release_client_cb(
+
+unsafe extern "C" fn release_client_cb(
     device: *mut GObject,
     res: *mut GAsyncResult,
     user_data: *mut c_void,
 ) {
-    let sender = unsafe { Box::from_raw(user_data as *mut oneshot::Sender<QmiResult<()>>) };
+    let sender = Box::from_raw(user_data as *mut oneshot::Sender<QmiResult<()>>);
     let mut error: *mut GError = null_mut();
 
-    let ret =
-        unsafe { qmi_device_release_client_finish(device as *mut QmiDevice, res, &mut error) };
+    let ret = qmi_device_release_client_finish(device as *mut QmiDevice, res, &mut error);
 
     let output = match ret {
         GFALSE => Err((error, "release voice client").into()),

@@ -135,12 +135,16 @@ impl Device {
     }
 }
 
-extern "C" fn device_new_cb(_unused: *mut GObject, res: *mut GAsyncResult, user_data: *mut c_void) {
-    let sender = unsafe { Box::from_raw(user_data as *mut oneshot::Sender<QmiResult<Device>>) };
+unsafe extern "C" fn device_new_cb(
+    _unused: *mut GObject,
+    res: *mut GAsyncResult,
+    user_data: *mut c_void,
+) {
+    let sender = Box::from_raw(user_data as *mut oneshot::Sender<QmiResult<Device>>);
 
     let mut error: *mut GError = null_mut();
 
-    let device = unsafe { qmi_device_new_finish(res, &mut error) };
+    let device = qmi_device_new_finish(res, &mut error);
 
     let output = match NonNull::new(device) {
         None => Err((error, "new device").into()),
@@ -148,12 +152,17 @@ extern "C" fn device_new_cb(_unused: *mut GObject, res: *mut GAsyncResult, user_
     };
     drop(sender.send(output).inspect_err(cannot_send));
 }
-extern "C" fn device_open_cb(device: *mut GObject, res: *mut GAsyncResult, user_data: *mut c_void) {
-    let sender = unsafe { Box::from_raw(user_data as *mut oneshot::Sender<QmiResult<()>>) };
+
+unsafe extern "C" fn device_open_cb(
+    device: *mut GObject,
+    res: *mut GAsyncResult,
+    user_data: *mut c_void,
+) {
+    let sender = Box::from_raw(user_data as *mut oneshot::Sender<QmiResult<()>>);
 
     let mut error: *mut GError = null_mut();
 
-    let ret = unsafe { qmi_device_open_finish(device as *mut QmiDevice, res, &mut error) };
+    let ret = qmi_device_open_finish(device as *mut QmiDevice, res, &mut error);
 
     let output = match ret {
         GFALSE => Err((error, "open device").into()),
@@ -161,16 +170,17 @@ extern "C" fn device_open_cb(device: *mut GObject, res: *mut GAsyncResult, user_
     };
     drop(sender.send(output).inspect_err(cannot_send));
 }
-extern "C" fn device_close_cb(
+
+unsafe extern "C" fn device_close_cb(
     device: *mut GObject,
     res: *mut GAsyncResult,
     user_data: *mut c_void,
 ) {
-    let sender = unsafe { Box::from_raw(user_data as *mut oneshot::Sender<QmiResult<()>>) };
+    let sender = Box::from_raw(user_data as *mut oneshot::Sender<QmiResult<()>>);
 
     let mut error: *mut GError = null_mut();
 
-    let ret = unsafe { qmi_device_close_finish(device as *mut QmiDevice, res, &mut error) };
+    let ret = qmi_device_close_finish(device as *mut QmiDevice, res, &mut error);
 
     let output = match ret {
         GFALSE => Err((error, "close device").into()),

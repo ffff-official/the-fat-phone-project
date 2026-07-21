@@ -21,6 +21,8 @@ use std::ffi::c_void;
 use std::ptr::NonNull;
 use std::ptr::null_mut;
 
+type CardStatusOutputElem = MessageUimGetCardStatusOutputCardStatusCardsElement;
+
 #[derive(Debug)]
 pub struct UimClient {
     client: NonNull<QmiClientUim>,
@@ -103,12 +105,8 @@ impl UimClient {
         rx.await.map_err(|_| QmiError::cb_droped())?
     }
 
-    pub async fn get_card_status(
-        &self,
-    ) -> QmiResult<Vec<MessageUimGetCardStatusOutputCardStatusCardsElement>> {
-        let (tx, rx) = oneshot::channel::<
-            QmiResult<Vec<MessageUimGetCardStatusOutputCardStatusCardsElement>>,
-        >();
+    pub async fn get_card_status(&self) -> QmiResult<Vec<CardStatusOutputElem>> {
+        let (tx, rx) = oneshot::channel::<QmiResult<Vec<CardStatusOutputElem>>>();
 
         unsafe {
             qmi_client_uim_get_card_status(
@@ -181,18 +179,16 @@ impl UimClient {
     }
 }
 
-extern "C" fn allocate_client_cb(
+unsafe extern "C" fn allocate_client_cb(
     device: *mut GObject,
     res: *mut GAsyncResult,
     user_data: *mut c_void,
 ) {
-    let sender = unsafe {
-        Box::from_raw(user_data as *mut oneshot::Sender<QmiResult<NonNull<QmiClientUim>>>)
-    };
+    let sender = Box::from_raw(user_data as *mut oneshot::Sender<QmiResult<NonNull<QmiClientUim>>>);
+
     let mut error: *mut GError = null_mut();
 
-    let client =
-        unsafe { qmi_device_allocate_client_finish(device as *mut QmiDevice, res, &mut error) };
+    let client = qmi_device_allocate_client_finish(device as *mut QmiDevice, res, &mut error);
 
     let output = match NonNull::new(client as _) {
         None => Err((error, "new uim client").into()),
@@ -200,16 +196,16 @@ extern "C" fn allocate_client_cb(
     };
     drop(sender.send(output).inspect_err(cannot_send));
 }
-extern "C" fn release_client_cb(
+
+unsafe extern "C" fn release_client_cb(
     device: *mut GObject,
     res: *mut GAsyncResult,
     user_data: *mut c_void,
 ) {
-    let sender = unsafe { Box::from_raw(user_data as *mut oneshot::Sender<QmiResult<()>>) };
+    let sender = Box::from_raw(user_data as *mut oneshot::Sender<QmiResult<()>>);
     let mut error: *mut GError = null_mut();
 
-    let ret =
-        unsafe { qmi_device_release_client_finish(device as *mut QmiDevice, res, &mut error) };
+    let ret = qmi_device_release_client_finish(device as *mut QmiDevice, res, &mut error);
 
     let output = match ret {
         GFALSE => Err((error, "release uim client").into()),
@@ -217,32 +213,24 @@ extern "C" fn release_client_cb(
     };
     drop(sender.send(output).inspect_err(cannot_send));
 }
-extern "C" fn get_card_status_cb(
+
+unsafe extern "C" fn get_card_status_cb(
     device: *mut GObject,
     res: *mut GAsyncResult,
     user_data: *mut c_void,
 ) {
-    let sender = unsafe {
-        Box::from_raw(
-            user_data
-                as *mut oneshot::Sender<
-                    QmiResult<Vec<MessageUimGetCardStatusOutputCardStatusCardsElement>>,
-                >,
-        )
-    };
+    let sender =
+        Box::from_raw(user_data as *mut oneshot::Sender<QmiResult<Vec<CardStatusOutputElem>>>);
     let mut error: *mut GError = null_mut();
 
-    let output = unsafe { qmi_client_uim_get_card_status_finish(device as _, res, &mut error) };
+    let output = qmi_client_uim_get_card_status_finish(device as _, res, &mut error);
     let output = match output.is_null() {
         true => Err((error, "get card status cb finish").into()),
         false => {
-            let ret =
-                unsafe { qmi_message_uim_get_card_status_output_get_result(output, &mut error) };
+            let ret = qmi_message_uim_get_card_status_output_get_result(output, &mut error);
             match ret {
                 GFALSE => {
-                    unsafe {
-                        qmi_message_uim_get_card_status_output_unref(output);
-                    }
+                    qmi_message_uim_get_card_status_output_unref(output);
                     Err((error, "get card status get result").into())
                 }
                 _ => {
@@ -251,40 +239,32 @@ extern "C" fn get_card_status_cb(
                     let mut value_card_status_index_gw_secondary = 0;
                     let mut value_card_status_index_1x_secondary = 0;
                     let mut cards: *mut glib::GArray = null_mut();
-                    let ret = unsafe {
-                        qmi_message_uim_get_card_status_output_get_card_status(
-                            output,
-                            &mut value_card_status_index_gw_primary,
-                            &mut value_card_status_index_1x_primary,
-                            &mut value_card_status_index_gw_secondary,
-                            &mut value_card_status_index_1x_secondary,
-                            &mut cards,
-                            &mut error,
-                        )
-                    };
+                    let ret = qmi_message_uim_get_card_status_output_get_card_status(
+                        output,
+                        &mut value_card_status_index_gw_primary,
+                        &mut value_card_status_index_1x_primary,
+                        &mut value_card_status_index_gw_secondary,
+                        &mut value_card_status_index_1x_secondary,
+                        &mut cards,
+                        &mut error,
+                    );
                     match ret {
                         GFALSE => {
-                            unsafe {
-                                qmi_message_uim_get_card_status_output_unref(output);
-                            }
+                            qmi_message_uim_get_card_status_output_unref(output);
                             Err((error, "get card status output get card status").into())
                         }
                         _ => {
-                            let slice = unsafe {
-                                std::slice::from_raw_parts(
+                            let slice = std::slice::from_raw_parts(
                                 (*cards).data as *const QmiMessageUimGetCardStatusOutputCardStatusCardsElement,
                                 (*cards).len as usize,
-                            )
-                            };
+                            );
                             let final_output = slice
                                 .iter()
-                                .map(|card| {
-                                    MessageUimGetCardStatusOutputCardStatusCardsElement::from(*card)
-                                })
+                                .map(|card| CardStatusOutputElem::from(*card))
                                 .collect::<Vec<_>>();
-                            unsafe {
-                                qmi_message_uim_get_card_status_output_unref(output);
-                            }
+
+                            qmi_message_uim_get_card_status_output_unref(output);
+
                             Ok(final_output)
                         }
                     }
@@ -294,21 +274,26 @@ extern "C" fn get_card_status_cb(
     };
     drop(sender.send(output).inspect_err(cannot_send));
 }
-extern "C" fn verify_pin_cb(device: *mut GObject, res: *mut GAsyncResult, user_data: *mut c_void) {
-    let sender = unsafe { Box::from_raw(user_data as *mut oneshot::Sender<QmiResult<u8>>) };
+
+unsafe extern "C" fn verify_pin_cb(
+    device: *mut GObject,
+    res: *mut GAsyncResult,
+    user_data: *mut c_void,
+) {
+    let sender = Box::from_raw(user_data as *mut oneshot::Sender<QmiResult<u8>>);
     let mut error: *mut GError = null_mut();
 
-    let output = unsafe { qmi_client_uim_verify_pin_finish(device as _, res, &mut error) };
+    let output = qmi_client_uim_verify_pin_finish(device as _, res, &mut error);
     let output = match output.is_null() {
         true => Err((error, "verify pin cb finish").into()),
-        false => unsafe {
+        false => {
             let ret = { qmi_message_uim_verify_pin_output_get_result(output, &mut error) };
             qmi_message_uim_verify_pin_output_unref(output);
             match ret {
                 GFALSE => Err((error, "verify pin output").into()),
                 _ => Ok(0),
             }
-        },
+        }
     };
     drop(sender.send(output).inspect_err(cannot_send));
 }
