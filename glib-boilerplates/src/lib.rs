@@ -280,24 +280,24 @@ fn conversion_expression_from_rust(
 
         return quote! {
             unsafe {
-                let ffi_vec: Vec<#ffi_element_type> = value
-                    .#field_name
-                    .into_iter()
-                    .map(Into::into)
-                    .collect();
+                let values = value.#field_name;
+                let len = values.len();
 
                 let array = glib_sys::g_array_sized_new(
                     0,
                     0,
                     std::mem::size_of::<#ffi_element_type>() as u32,
-                    ffi_vec.len() as u32,
+                    len as u32,
                 );
-                if !ffi_vec.is_empty() {
-                    glib_sys::g_array_append_vals(
-                        array,
-                        ffi_vec.as_ptr() as *const _,
-                        ffi_vec.len() as u32,
-                    );
+
+                glib_sys::g_array_set_size(array, len as u32);
+
+                if len != 0 {
+                    let destination = (*array).data as *mut #ffi_element_type;
+
+                    for (index, value) in values.into_iter().enumerate() {
+                        destination.add(index).write(value.into());
+                    }
                 }
                 array
             }

@@ -952,6 +952,7 @@ version = "0.0.9"
 dependencies = [
  "futures",
  "gio-sys",
+ "glib",
  "glib-sys",
  "gobject-sys",
  "libqmi-glib-sys",
