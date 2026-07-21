@@ -1,0 +1,11 @@
+[package]
+name = "gsm7-rs"
+description = "GSM-7 (aka GSM 03.38 or 3GPP 23.038) encoding and decoding in Rust"
+version = "0.4.0"
+authors = ["Jasper Hugo <jasper@jasperhugo.com>"]
+edition = "2024"
+license = "MIT"
+readme = "README.md"
+
+[dependencies]
+bitstream-io = "4"

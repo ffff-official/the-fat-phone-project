@@ -1,0 +1,1 @@
+![bibendum](bibendum.jpg)

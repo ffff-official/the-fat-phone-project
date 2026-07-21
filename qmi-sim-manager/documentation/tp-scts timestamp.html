@@ -1,0 +1,24 @@
+<html><!--
+ Page saved with SingleFile 
+ url: http://rfc.nop.hu/sms/scts.html 
+ saved date: Fri Jul 03 2026 17:24:45 GMT-0400 (Eastern Daylight Time)
+--><meta charset=utf-8><meta name=referrer content=no-referrer><link rel=canonical href=http://rfc.nop.hu/sms/scts.html><meta http-equiv=content-security-policy content="default-src 'none'; font-src 'self' data:; img-src 'self' data:; style-src 'unsafe-inline'; media-src 'self' data:; script-src 'unsafe-inline' data:; object-src 'self' data:; frame-src 'self' data:;"><body><h1><a name=TP-SCTS></a>Service Centre Time Stamp (TP-SCTS)</h1>
+The TP-Service-Centre-Time-Stamp field is given in semi-octet representation (each semi-octet consists of two digital decimals), and represents the local time in the
+following way:
+<blockquote>
+<table border width=90%>
+<tbody><tr bgcolor=#FFFFCC><td>Field<td>Length<td>Description</tr>
+<tr><td>Year<td>1<td>These semi-octets are in "<a href=#Swapped-Nibble>Swapped Nibble</a>" mode</tr>
+<tr><td>Month<td>1<td></tr>
+<tr><td>Day<td>1<td></tr>
+<tr><td>Hour<td>1<td></tr>
+<tr><td>Minute<td>1<td></tr>
+<tr><td>Second<td>1<td></tr>
+<tr><td align=LEFT valign=TOP>Timezone<td align=LEFT valign=TOP>1<td>Relation to GMT. One unit is 15min. If MSB=1, value is negative.</tr>
+</table>
+E.g.: 0x99 0x20 0x21 0x50 0x75 0x03 0x21 means 12. Feb 1999 05:57:30 GMT+3
+<h3><a name=Swapped-Nibble></a>Swapped Nibble presentation</h3>
+<blockquote>
+BCD code where nibbles within octet is swapped. E.g.: 0x31 Represents value of 13
+</blockquote>
+</blockquote>

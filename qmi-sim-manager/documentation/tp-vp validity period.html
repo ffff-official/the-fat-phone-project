@@ -1,0 +1,32 @@
+<html><!--
+ Page saved with SingleFile 
+ url: http://rfc.nop.hu/sms/vp.html 
+ saved date: Fri Jul 03 2026 17:26:12 GMT-0400 (Eastern Daylight Time)
+--><meta charset=utf-8><meta name=referrer content=no-referrer><link rel=canonical href=http://rfc.nop.hu/sms/vp.html><meta http-equiv=content-security-policy content="default-src 'none'; font-src 'self' data:; img-src 'self' data:; style-src 'unsafe-inline'; media-src 'self' data:; script-src 'unsafe-inline' data:; object-src 'self' data:; frame-src 'self' data:;"><body><h1><a name=TP-Validity-Period></a>Validity Period (TP-VP)</h1>
+<blockquote>
+Validity period specifies the time when SM expires. If SM is't
+delivered before that moment, it is discarded by SC. Validity-Period can
+be in three different format; Relative, Absolute and Enhanced.
+<h3><a name=TP_VP_Relative></a>Relative:</h3>
+<blockquote>
+The TP-Validity-Period comprises 1 octet in integer representation, giving the length of the validity period, counted
+from when the SMS-SUBMIT is received by the SC.
+The representation of time is as follows:
+<table border width=80%>
+<tbody><tr bgcolor=#FFFFCC><td>TP-VP value<td>Validity period value</tr>
+<tr><td>0 to 143<td>(TP-VP + 1) * 5 minutes (i.e. 5 minutes intervals up to 12 hours)</tr>
+<tr><td>144 to 167<td>12 hours + ((TP-VP - 143) * 30 minutes)</tr>
+<tr><td>168 to 196<td>(TP-VP - 166) * 1 day</tr>
+<tr><td>197 to 255<td>(TP-VP - 192) * 1 week</tr>
+</table>
+</blockquote>
+<h3><a name=TP_VP_Absolute></a>Absolute</h3>
+<blockquote>
+TP-VP field is 7 octets long, containing <a href=http://rfc.nop.hu/sms/scts.html>TP-SCTS</a>
+formatted time when SM expires. See ETSI 03.40 for more information.
+</blockquote>
+<h3><a name=TP_VPF_Enhanged></a>Enhanced</h3>
+<blockquote>
+See ETSI 03.40
+</blockquote>
+</blockquote>

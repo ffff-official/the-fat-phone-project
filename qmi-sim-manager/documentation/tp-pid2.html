@@ -1,0 +1,123 @@
+<html style><!--
+ Page saved with SingleFile 
+ url: http://rfc.nop.hu/sms/pid.html 
+ saved date: Fri Jul 03 2026 17:23:43 GMT-0400 (Eastern Daylight Time)
+--><meta charset=utf-8><meta name=referrer content=no-referrer><link rel=canonical href=http://rfc.nop.hu/sms/pid.html><meta http-equiv=content-security-policy content="default-src 'none'; font-src 'self' data:; img-src 'self' data:; style-src 'unsafe-inline'; media-src 'self' data:; script-src 'unsafe-inline' data:; object-src 'self' data:; frame-src 'self' data:;"><body><h1><a name=TP-PID></a>Protocol Identifier (TP-PID)</h1>
+The TP-Protocol-Identifier parameter consists of one octet, and the
+bits in the octet are used as follows:
+The MS will interpret reserved or unsupported values as the value 00000000 but shall store them exactly as received.
+The SC may reject messages with a TP-Protocol-Identifier containing a reserved value or one which is not supported.
+<blockquote>
+<table border width=90%>
+<tbody><tr bgcolor=#FFFFCC><td>Bit 7<td>Bit 6<td>Usage</tr>
+<tr><td>0<td>0<td>Assigns bits 0..5 as defined below</tr>
+<tr><td>0<td>1<td>Assigns bits 0..5 as defined below</tr>
+<tr><td>1<td>0<td>Reserved</tr>
+<tr><td>1<td>1<td>Assigns bits 0..5 for SC specific use</tr>
+</table>
+In case where bits 7 and 6 both are 0:
+<table border width=90%>
+<tbody><tr bgcolor=#FFFFCC><td>Bit 5<td>Description</tr>
+<tr><td>0<td>no interworking, but SME-to-SME protocol</tr>
+<tr><td>1<td>telematic interworking</tr>
+</table>
+In the case of telematic interworking, the following five bit patterns
+in bits 4..0 are used to indicate types of telematic devices:
+<table border width=90%>
+<tbody><tr bgcolor=#FFFFCC><td>Bits 4..0<td>Description</tr>
+<tr><td>00000<td>implicit - device type is specific to this SC, or can be concluded on the basis of the address</tr>
+<tr><td>00001<td>telex (or teletex reduced to telex format)</tr>
+<tr><td>00010<td>group 3 telefax</tr>
+<tr><td>00011<td>group 4 telefax</tr>
+<tr><td>00100<td>voice telephone (i.e. conversion to speech)</tr>
+<tr><td>00101<td>ERMES (European Radio Messaging System)</tr>
+<tr><td>00110<td>National Paging System (known to the SC)</tr>
+<tr><td>00111<td>Videotex (T.100/T.101)</tr>
+<tr><td>01000<td>teletex, carrier unspecified</tr>
+<tr><td>01001<td>teletex, in PSPDN</tr>
+<tr><td>01010<td>teletex, in CSPDN</tr>
+<tr><td>01011<td>teletex, in analog PSTN</tr>
+<tr><td>01100<td>teletex, in digital ISDN</tr>
+<tr><td>01101<td>UCI (Universal Computer Interface, ETSI DE/PS 3 01-3)</tr>
+<tr><td>01110..<br>..01111<td>(reserved, 2 combinations)</tr>
+<tr><td>10000<td>a message handling facility (known to the SC)</tr>
+<tr><td>10001<td>any public X.400-based message handling system</tr>
+<tr><td>10010<td>Internet Electronic Mail</tr>
+<tr><td>10011..<br>..10111<td>(reserved, 5 combinations)</tr>
+<tr><td>11000..<br>..11110<td>values specific to each SC, usage based on mutual agreement between the SME and the SC (7 combinations available for each SC)</tr>
+<tr><td>11111<td>A GSM mobile station. The SC converts the SM from the received TP-DCS to any data coding scheme supported by that MS (e.g. the default).</tr>
+</table>
+If bit 5 has value 1 in an SMS-SUBMIT PDU, it indicates that the SME
+is a telematic device of a type which is indicated in bits 4..0, and requests
+the SC to convert the SM into a form suited for that device type. If the
+destination network is ISDN, the SC must also select the proper service
+indicators for connecting to a device of that type.
+<p>If bit 5 has value 1 in an SMS-DELIVER PDU, it indicates that the SME
+is a telematic device of a type which is indicated in bits 4..0.
+<p>If bit 5 has value 0 in an SMS-DELIVER PDU, the value in bits 4..0 indicates
+the SM-AL protocol being used between the SME and the MS.
+<p>Note that for the straightforward case of simple MS-to-SC short message
+transfer the Protocol Identifier is set to the value 0.
+<p>In the case where bit 7 = 0, bit 6 = 1, bits 5..0 are used as defined
+below
+<table border width=90%>
+<tbody><tr bgcolor=#FFFFCC><td>Bits 5..0<td>Description</tr>
+<tr><td>000000<td>Short Message Type 0</tr>
+<tr><td>000001<td>Replace Short Message Type 1</tr>
+<tr><td>000010<td>Replace Short Message Type 2</tr>
+<tr><td>000011<td>Replace Short Message Type 3</tr>
+<tr><td>000100<td>Replace Short Message Type 4</tr>
+<tr><td>000101<td>Replace Short Message Type 5</tr>
+<tr><td>000110<td>Replace Short Message Type 6</tr>
+<tr><td>000111<td>Replace Short Message Type 7</tr>
+<tr><td>001000..011110<td>Reserved</tr>
+<tr><td>011111<td>Return Call Message</tr>
+<tr><td>100000..111100<td>Reserved</tr>
+<tr><td>111101<td>ME Data download</tr>
+<tr><td>111110<td>ME De-personalization Short MEssage</tr>
+<tr><td>111111<td>SIM Data download</tr>
+</table>
+<p>A short message type 0 indicates that the ME must acknowledge receipt
+of the short message but may discard its contents.
+<p>The Replace Short Message feature is optional for the ME and the SIM
+but if implemented it shall be performed as descriped here.
+<p>For MT short messages, on receipt of a short message from from the SC,
+the MS shall check to see if the associated Protocol Identifier contains
+a Replace Short Message Type code.
+<p>If such a code is present, the the MS will check the originating address
+and replace any existing stored message having the same Protocol Identifier
+code and originating address with the new short message and other parameter
+values. If there is no message to be replaced, the MS shall store the message
+in the normal way. The MS may also check the SC address as well as the
+Originating Address. However, in a network which has multiple SCs, it is
+possible for a Replace Message type for a SM to be sent via different SCs
+and so it is recommended that the SC address should not be checked by the
+MS unless the application specifically requires such a check.
+<p>If a Replace Short Message Type code is not present then the MS will
+will store the message in the normal way.
+<p>In MO short messages the SC reacts similarly but only the address of
+the originating MS or any other source is checked.
+<p>A Return Call Message indicates to the MS to inform the user that a
+call (e.g. a telephone call) can be established to the address specified
+within the TP-OA. The RP-OA contains the address of the SC as usual. The
+message content (if present) gives displayable information (e.g. the number
+of waiting voice messages). The message is handled in the same way as all
+other messages of the Replace Short Message Types.
+<p>The ME De-personalization Short Message is an ME-specific message which
+instructs the ME to de-personalities the ME (see GSM 2.22). The TP-DCS
+shall be set to Uncompressed, Default Alphabet, and Message Class 1 (Me-specific),
+which corresponds to a bit coding og 00010001. The TP-UD field contains
+de-personalization information coded according to GSM 02.22. This information
+shall not be displayed by an ME which supports the scheme. The acknowledgement
+to this message is a SMS-DELIVER-REPORT for RP-ACK in ehich the TP-User-Data
+shall be coded according to GSM 02.22.
+<p>SIM Data download is a facility whereby the ME must pass the short message
+in its entirety including all SMS elements contained in the SMS deliver
+to the SIM using the mechanism descriped in GSM 11.11. The DCS shall be
+set to 8 bit message class 2 (either bit coding 11110110 or 00010110).
+The entire user data field is available for SIM Data download.
+<p>ME Data download is facility whereby the ME shall process the short
+message in its entirety including all SMS elements contained in the SMS
+deliver to the ME. The DCS shall be set to message class 1. The entire
+user data field is available for ME data download.
+</p></blockquote>

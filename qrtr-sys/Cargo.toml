@@ -1,0 +1,44 @@
+[package]
+name = "qrtr-sys"
+version = "0.1.1"
+edition = "2021"
+build = "build.rs"
+authors = ["bmickael <bmickael@proton.me>"]
+repository = "https://gitlab.com/mordaklavache/the-fat-phone-project"
+description = "Raw FFI bindings for libqrtr-glib, the GLib-based API for the Qualcomm Router (QRTR) IPC bus."
+readme = "README.md"
+keywords = [
+    "ffi",
+    "glib",
+    "qrtr",
+    "qualcomm",
+    "bindings",
+]
+license = "MIT/Apache-2.0"
+links = "qrtr-glib"
+
+[package.metadata.system-deps.qrtr_glib]
+name = "qrtr-glib"
+version = "1"
+
+[package.metadata.docs.rs]
+rustdoc-args = ["--generate-link-to-definition"]
+all-features = true
+
+[lib]
+name = "qrtr_sys"
+
+[dependencies]
+glib-sys.workspace = true
+gobject-sys.workspace = true
+gio-sys.workspace = true
+libc.workspace = true
+
+[build-dependencies]
+system-deps = "7"
+
+[dev-dependencies]
+shell-words = "1.0.0"
+tempfile = "3"
+
+[features]

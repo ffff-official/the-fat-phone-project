@@ -1,0 +1,25 @@
+[options]
+library = "Qrtr"
+version = "1.0"
+min_cfg_version = "1.0"
+
+target_path = "."
+auto_path = "src/auto"
+
+work_mode = "normal"
+single_version_file = true
+
+girs_directories = [
+    "/usr/share/gir-1.0",
+    "../gir-files",
+]
+
+external_libraries = [
+    "GLib",
+    "GObject",
+    "Gio",
+]
+
+generate = [
+    "Qrtr.Node",
+]

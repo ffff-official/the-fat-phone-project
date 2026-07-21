@@ -1,0 +1,35 @@
+python3 - <<'PY'
+import xml.etree.ElementTree as ET
+
+gir = "/usr/share/gir-1.0/Qmi-1.0.gir"
+
+ns = {
+    "core": "http://www.gtk.org/introspection/core/1.0",
+}
+
+root = ET.parse(gir).getroot()
+
+accepted = {
+    "enumeration",
+    "bitfield",
+    "record",
+}
+
+types = []
+
+for namespace in root.findall("core:namespace", ns):
+    for child in namespace:
+        tag = child.tag.rsplit("}", 1)[-1]
+
+        if tag not in accepted:
+            continue
+
+        name = child.attrib.get("name")
+        if name:
+            types.append(f"Qmi.{name}")
+
+print("generate = [")
+for name in sorted(set(types)):
+    print(f'    "{name}",')
+print("]")
+PY

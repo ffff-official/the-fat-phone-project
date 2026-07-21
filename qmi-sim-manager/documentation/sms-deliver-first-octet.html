@@ -1,0 +1,51 @@
+<html><!--
+ Page saved with SingleFile 
+ url: http://rfc.nop.hu/sms/deliver_fo.html 
+ saved date: Fri Jul 03 2026 17:12:04 GMT-0400 (Eastern Daylight Time)
+--><meta charset=utf-8>
+<title>First octet of the SMS-DELIVER PDU</title>
+<meta name=referrer content=no-referrer><link rel=canonical href=http://rfc.nop.hu/sms/deliver_fo.html><meta http-equiv=content-security-policy content="default-src 'none'; font-src 'self' data:; img-src 'self' data:; style-src 'unsafe-inline'; media-src 'self' data:; script-src 'unsafe-inline' data:; object-src 'self' data:; frame-src 'self' data:;"></head>
+<body>
+<h1>First octet of the SMS-DELIVER PDU</h1>
+The first octet of the SMS-DELIVER PDU has the following layout:
+<br>
+<br>
+<table border=1>
+<tbody><tr bgcolor=#FFFFCC>
+<th>Bit no<td>7<td>6<td>5<td>4<td>3<td>2<td>1<td>0</td>
+</tr>
+<tr>
+<th>Name<td>TP-RP<td>TP-UDHI<td>TP-SRI<td>(unused)<td>(unused)<td>TP-MMS<td>TP-MTI<td>TP-MTI</td>
+</tr>
+</table><br>
+where the fields have the following meaning:
+<br><br><table>
+</table><table border=1>
+<tbody><tr bgcolor=#FFFFCC><th>Name<th>Meaning</tr>
+<tr><td>TP-RP<td>Reply path. Parameter indicating that reply path exists. </tr>
+<tr><td>TP-UDHI<td>User data header indicator. This bit is set to 1 if the
+User Data field starts with a header </tr>
+<tr><td>TP-SRI<td>Status report indication. This bit is set to 1 if a
+status report is going to be returned to the SME</tr>
+<tr><td>TP-MMS<td>More messages to send. This bit is set to 0 if there are
+more messages to send</tr>
+<tr><td>TP-MTI<td>Message type indicator. Bits no 1 and 0 are both set to
+0 to indicate that this PDU is an SMS-DELIVER 
+</table>
+<br>
+<h3>Example</h3>
+A first octet of "04" (hex) has the following meaning:
+<br>
+<br>
+<table border=1>
+<tbody><tr bgcolor=#FFFFCC>
+<th>Bit no<td>7<td>6<td>5<td>4<td>3<td>2<td>1<td>0</td>
+</tr>
+<tr>
+<th>Name<td>TP-RP<td>TP-UDHI<td>TP-SRI<td>(unused)<td>(unused)<td>TP-MMS<td>TP-MTI<td>TP-MTI</td>
+</tr>
+<tr>
+<th>Value<td>0<td>0<td>0<td>0<td>0<td>1<td>0<td>0</td>
+</tr>
+</table><table>
+</table>

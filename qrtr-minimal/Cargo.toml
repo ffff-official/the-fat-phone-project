@@ -1,0 +1,22 @@
+[package]
+name = "qrtr-minimal"
+version = "0.1.1"
+edition = "2024"
+description = "Rust bindings for libqrtr-glib"
+authors = ["bmickael <bmickael@proton.me>"]
+repository = "https://gitlab.com/mordaklavache/the-fat-phone-project"
+readme = "README.md"
+keywords = [
+    "qrtr",
+    "gobject",
+    "gir",
+    "glib",
+    "bindings",
+]
+license = "MIT/Apache-2.0"
+
+[dependencies]
+qrtr-sys.workspace = true
+
+glib.workspace = true
+gio.workspace = true

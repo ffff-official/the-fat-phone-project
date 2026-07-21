@@ -1,0 +1,39 @@
+[package]
+name = "qmi-sim-manager"
+version = "0.0.5"
+edition = "2024"
+authors = ["bmickael <bmickael@proton.me>"]
+repository = "https://gitlab.com/mordaklavache/the-fat-phone-project"
+description = "SMS, MMS, and call management for Qualcomm-based modems"
+readme = "README.md"
+keywords = ["gsm", "qmi"]
+license = "MIT/Apache-2.0"
+
+[dependencies]
+libqmi-glib-rs.workspace = true
+libqmi-glib-types-rs.workspace = true
+gsm7-rs.workspace = true
+glib.workspace = true
+
+glib-unix.workspace = true
+glib-sys.workspace = true
+gobject-sys.workspace = true
+gio-sys.workspace = true
+futures.workspace = true
+tracing.workspace = true
+
+nix = "0.31"
+bitflags = "2.13"
+bitfields = "3.0"
+num_enum = "0.7"
+chrono = "0.4"
+tokio = { version = "1.52", features = ["rt-multi-thread", "macros", "fs"] }
+rtnetlink = "0.21"
+reqwest = "0.13"
+xmltree = { version = "0.12", features = ["attribute-order"] }
+thiserror = "2.0.18"
+
+[dev-dependencies]
+serial_test = "3.5"
+hex-literal = "1.1"
+tracing-subscriber = "0.3"

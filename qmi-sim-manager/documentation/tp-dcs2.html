@@ -1,0 +1,92 @@
+<html style><!--
+ Page saved with SingleFile 
+ url: http://rfc.nop.hu/sms/dcs.html 
+ saved date: Fri Jul 03 2026 17:23:04 GMT-0400 (Eastern Daylight Time)
+--><meta charset=utf-8><meta name=referrer content=no-referrer><link rel=canonical href=http://rfc.nop.hu/sms/dcs.html><meta http-equiv=content-security-policy content="default-src 'none'; font-src 'self' data:; img-src 'self' data:; style-src 'unsafe-inline'; media-src 'self' data:; script-src 'unsafe-inline' data:; object-src 'self' data:; frame-src 'self' data:;"><body><h1><a name=TP-DCS></a>Data Coding Scheme (TP-DCS)</h1>
+<blockquote>
+<table border width=90%>
+<tbody><tr bgcolor=#FFFFCC><td align=LEFT valign=TOP>Coding Group Bits 7..4<td>Use of bits 3..0</tr>
+<tr><td valign=TOP>00xx<td>General Data Coding indication<br>Bits 5..0 indicate the following:
+ <table border width=80%>
+ <tbody><tr bgcolor=#FFFFCC><td>Bit 5<td> </tr>
+ <tr><td>0<td>Text is uncompressed</tr>
+ <tr><td>1<td>Text is compressed</tr>
+ </table>
+ <br>
+ <table border width=80%>
+ <tbody><tr bgcolor=#FFFFCC><td>Bit 4<td></tr>
+ <tr><td>0<td>Bits 1..0 have no meaning</tr>
+ <tr><td>1<td>Bits 1..0 indicates message class</tr>
+ </table>
+ <br>
+ <table border width=80%>
+ <tbody><tr bgcolor=#FFFFCC>
+ <td>Bit 3<td>Bit 2<td>Alphabet being used</tr>
+ <tr><td>0<td>0<td>Default alphabet</tr>
+ <tr><td>0<td>1<td>8 bit data</tr>
+ <tr><td>1<td>0<td>UCS2 (16bit)</tr>
+ <tr><td>1<td>1<td>Reserved</tr>
+ </table>
+ <br>
+ <table border width=80%>
+ <tbody><tr bgcolor=#FFFFCC><td>Bit 1<td>Bit 0<td>Message class<td>Description</tr>
+ <tr><td>0<td>0<td>Class 0<td>Immediate display (alert)</tr>
+ <tr><td>0<td>1<td>Class 1<td>ME specific</tr>
+ <tr><td>1<td>0<td>Class 2<td>SIM specific</tr>
+ <tr><td>1<td>1<td>Class 3<td>TE specific</tr>
+ </table>
+ <p>NOTE: The special case of bits 7..0 being 0000 0000 indicates the Default Alphabet as in Phase 2</p></tr>
+<tr><td>0100..1011<td>Reserved coding groups</tr>
+<tr><td align=LEFT valign=TOP>1100<td>Message Waiting Indication Group: Discard Message
+<p>Bits 3..0 are coded exactly the same as Group 1101, however with bits
+7..4 set to 1100 the mobile may discard the contents of the message, and
+only present the indication to the user.</p></tr>
+<tr><td align=LEFT valign=TOP>1101<td>Message Waiting Indication Group: Store Message
+<p>This Group allows an indication to be provided to the user about status
+of types of message waiting on systems connected to the GSM PLMN. The mobile
+may present this indication as an icon on the screen, or other MMI indication.
+The mobile may take note of the Origination Address for message in this
+group and group 1100. For each indication supported, the mobile may provide
+storage for the Origination Address which is to control the mobile indication.
+<br>Text included in the user data is coded in the Default Alphabet.
+<br>Ehere a message is received with bits 7..4 set to 1101, the mobile
+shall store the text of the SMS message in addition to setting the indication.
+ <table border width=80%>
+ <tbody><tr bgcolor=#FFFFCC><td>Bit 3<td>Description</tr>
+ <tr><td>0<td>Set Indication Inactive</tr>
+ <tr><td>1<td>Set Indication Active</tr>
+ </table>
+ <p>Bit 2 is reserved, and set to 0
+ <table border width=80%>
+ <tbody><tr bgcolor=#FFFFCC><td>Bit 1<td>Bit 0<td>Indication Type</tr>
+ <tr><td>0<td>0<td>Voicemail Message Waiting</tr>
+ <tr><td>0<td>1<td>Fax Message Waiting</tr>
+ <tr><td>1<td>0<td>Electronic Mail Message Waiting</tr>
+ <tr><td>1<td>1<td>Other Message Waiting*</tr>
+ </table>
+<p>* Mobile manufacturers may implement the "Other Message Waiting" indication
+as an additional indication without specifying the meaning. The meaning
+of this indication is intended to be standardized in the future, so Operators
+should not make use of this indication until the standard for this indication
+is finalized.</p></tr>
+<tr><td align=LEFT valign=TOP>1110<td>Message Waiting Indication Group: Store Message
+<p>The coding of bits 3..0 and functionality of this feature are the same
+as for the Message Waiting Indication Group above, (bits 7..4 set to 1101)
+with the exception that the text included in the user data is coded in
+the uncompressed UCS2 alphabet.</p></tr>
+<tr><td align=LEFT valign=TOP>1111<td>Data coding/message class<p>Bit 3 is reserved, set to 0.
+ <table border width=80%>
+ <tbody><tr bgcolor=#FFFFCC><td>Bit 2<td>Message coding</tr>
+ <tr><td>0<td>Default alphabet</tr>
+ <tr><td>1<td>8-bit data</tr>
+ </table>
+ <br>
+ <table border width=80%>
+ <tbody><tr bgcolor=#FFFFCC><td>Bit 1<td>Bit 0<td>Message Class<td>Description</tr>
+ <tr><td>0<td>0<td>Class 0<td>Immediate display (alert)</tr>
+ <tr><td>0<td>1<td>Class 1<td>ME specific</tr>
+ <tr><td>1<td>0<td>Class 2<td>SIM specific</tr>
+ <tr><td>1<td>1<td>Class 3<td>TE specific</tr>
+ </table>
+</p></table>
+</blockquote>

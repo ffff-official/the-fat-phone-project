@@ -1,0 +1,24 @@
+[package]
+name = "glib-boilerplates"
+version = "0.0.2"
+edition = "2024"
+authors = ["bmickael <bmickael@proton.me>"]
+repository = "https://gitlab.com/mordaklavache/the-fat-phone-project"
+description = "Derive macros for generating conversion boilerplate between safe Rust types and GLib FFI types generated from GIR."
+readme = "README.md"
+keywords = [
+    "qmi",
+    "glib",
+    "bindings",
+    "gir",
+    "ffi"
+]
+license = "MIT/Apache-2.0"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+proc-macro2 = "1"
+quote = "1"
+syn = { version = "2", features = ["full"] }
