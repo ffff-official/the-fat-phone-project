@@ -527,7 +527,6 @@ impl SmClient {
         });
 
         let (reply_sender, reply_receiver) = oneshot::channel::<ServiceResult>();
-
         self.inner
             .engine_sender
             .unbounded_send(Request::WdsService(WdsServiceRequest {
@@ -536,11 +535,7 @@ impl SmClient {
             }))?;
 
         let response = reply_receiver.await?;
-
-        response
-            .downcast::<T>()
-            .map(|value| *value)
-            .map_err(|_| SmError::DowncastingFailed)
+        downcast_type(response)
     }
 
     /// Make a raw request to the WMS service through libqmi-glib-rs.
@@ -568,7 +563,6 @@ impl SmClient {
         });
 
         let (reply_sender, reply_receiver) = oneshot::channel::<ServiceResult>();
-
         self.inner
             .engine_sender
             .unbounded_send(Request::WmsService(WmsServiceRequest {
@@ -577,13 +571,8 @@ impl SmClient {
             }))?;
 
         let response = reply_receiver.await?;
-
-        response
-            .downcast::<T>()
-            .map(|value| *value)
-            .map_err(|_| SmError::DowncastingFailed)
+        downcast_type(response)
     }
-
     /// Make a raw request to the UIM service through libqmi-glib-rs.
     ///
     /// The function body executes on the GLib runtime.
@@ -609,7 +598,6 @@ impl SmClient {
         });
 
         let (reply_sender, reply_receiver) = oneshot::channel::<ServiceResult>();
-
         self.inner
             .engine_sender
             .unbounded_send(Request::UimService(UimServiceRequest {
@@ -618,11 +606,7 @@ impl SmClient {
             }))?;
 
         let response = reply_receiver.await?;
-
-        response
-            .downcast::<T>()
-            .map(|value| *value)
-            .map_err(|_| SmError::DowncastingFailed)
+        downcast_type(response)
     }
 
     /// Make a raw request to the VOICE service through libqmi-glib-rs.
@@ -650,7 +634,6 @@ impl SmClient {
         });
 
         let (reply_sender, reply_receiver) = oneshot::channel::<ServiceResult>();
-
         self.inner
             .engine_sender
             .unbounded_send(Request::VoiceService(VoiceServiceRequest {
@@ -659,16 +642,22 @@ impl SmClient {
             }))?;
 
         let response = reply_receiver.await?;
-
-        response
-            .downcast::<T>()
-            .map(|value| *value)
-            .map_err(|_| SmError::DowncastingFailed)
+        downcast_type(response)
     }
 }
 
 type ServiceResult = Box<dyn std::any::Any + Send + 'static>;
 type ServiceFuture = Pin<Box<dyn Future<Output = ServiceResult> + 'static>>;
+
+fn downcast_type<T>(response: Box<dyn std::any::Any + Send>) -> SmResult<T>
+where
+    T: Send + 'static,
+{
+    response
+        .downcast::<T>()
+        .map(|value| *value)
+        .map_err(|_| SmError::DowncastingFailed)
+}
 
 #[cfg(test)]
 fn configure_tracing() {

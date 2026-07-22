@@ -35,7 +35,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut events = client_handle.event_stream()?;
     let h = tokio::spawn(async move {
-        // Process incoming events, such as received SMS messages.
+        // Process incoming events, such as received CALL messages.
         while let Some(event) = events.next().await {
             println!("{event:?}");
         }
