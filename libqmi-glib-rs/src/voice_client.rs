@@ -6,15 +6,35 @@ use futures::channel::oneshot;
 use gio_sys::GAsyncResult;
 use glib_sys::{GArray, GFALSE};
 use gobject_sys::{GClosure, GObject, g_object_ref, g_object_unref};
-use libqmi_glib_types_rs::glib::translate::IntoGlib;
+use libqmi_glib_types_rs::glib::translate::{FromGlib, IntoGlib, from_glib_none};
 use libqmi_glib_types_rs::{
     DeviceReleaseClientFlags, IndicationVoiceAllCallStatusOutputCallInformationCall, Service,
+    VoicePresentation,
 };
 
 use std::ffi::{CString, c_void};
 use std::ptr::NonNull;
 use std::ptr::null_mut;
 
+/// A client for interacting with the QMI Voice service.
+///
+/// [`VoiceClient`] provides asynchronous operations for managing voice calls
+/// through a QMI-compatible modem.
+///
+/// It can be used to:
+///
+/// - register for call status indications;
+/// - initiate outgoing calls;
+/// - answer incoming calls;
+/// - terminate active calls.
+///
+/// Call state changes are reported asynchronously through the
+/// `all-call-status` indication. Each call is identified by a modem-assigned
+/// call identifier, which is required by operations such as answering or
+/// ending a call.
+///
+/// The underlying QMI client is reference-counted and remains valid while at
+/// least one [`VoiceClient`] instance exists.
 #[derive(Debug)]
 pub struct VoiceClient {
     client: NonNull<QmiClientVoice>,
@@ -43,7 +63,25 @@ impl Clone for VoiceClient {
 }
 
 type CallInformation = IndicationVoiceAllCallStatusOutputCallInformationCall;
-type CallInfoCallback = Box<dyn FnMut(Vec<CallInformation>)>;
+type CallInfoCallback = Box<dyn FnMut(Vec<VoiceCall>)>;
+
+/// Describes a voice call reported by the modem.
+///
+/// This structure combines the call information reported in the
+/// `all-call-status` indication with the remote party number, providing a
+/// single, convenient view of the call.
+#[derive(Debug, Clone)]
+pub struct VoiceCall {
+    /// General information about the call.
+    pub info: CallInformation,
+    /// Remote party phone number.
+    pub number: String,
+    /// Presentation indicator associated with the remote party number.
+    ///
+    /// This value indicates whether the number is allowed to be displayed,
+    /// restricted, unavailable, or has another presentation status.
+    pub presentation_indicator: VoicePresentation,
+}
 
 impl VoiceClient {
     #[allow(dead_code)]
@@ -101,6 +139,7 @@ impl VoiceClient {
     }
 
     /// Asynchronously sends a Set All Call Status request to the device.
+    ///
     /// The sender parameter is the communication channel through which newly received new call states
     pub async fn set_all_call_status(&mut self, cb: CallInfoCallback) -> QmiResult<()> {
         unsafe {
@@ -165,7 +204,9 @@ impl VoiceClient {
         }
     }
 
-    /// Asynchronously sends a Dial Call request to the device.
+    /// Asynchronously requests the device to dial the specified phone number.
+    ///
+    /// Returns the call identifier assigned by the device.
     pub async fn dial_call(&self, number: impl AsRef<str>) -> QmiResult<u8> {
         let number = CString::new(number.as_ref())
             .map_err(|_e| QmiError::new("Phone number contains a NUL byte", "dial_call"))?;
@@ -196,7 +237,9 @@ impl VoiceClient {
         rx.await.map_err(|_| QmiError::cb_droped())?
     }
 
-    /// Asynchronously sends a Answer Call request to the device.
+    /// Asynchronously requests the device to answer to the specified call.
+    ///
+    /// Returns the call identifier reported by the device.
     pub async fn answer_call(&self, id: u8) -> QmiResult<u8> {
         let (tx, rx) = oneshot::channel::<QmiResult<u8>>();
 
@@ -222,7 +265,9 @@ impl VoiceClient {
         rx.await.map_err(|_| QmiError::cb_droped())?
     }
 
-    /// Asynchronously sends a End Call request to the device.
+    /// Asynchronously requests the device to end the specified call.
+    ///
+    /// Returns the call identifier reported by the device.
     pub async fn end_call(&self, id: u8) -> QmiResult<u8> {
         let (tx, rx) = oneshot::channel::<QmiResult<u8>>();
 
@@ -300,22 +345,63 @@ unsafe extern "C" fn all_call_status_cb(
         &mut error,
     );
     if ret == GFALSE || garray.is_null() {
-        tracing::error!("{}", Into::<QmiError>::into((error, "call event")));
+        tracing::error!(
+            "{}",
+            Into::<QmiError>::into((error, "call event informations"))
+        );
     } else {
-        let data_ffi_slice = {
+        let info_calls = {
             let ptr = (*garray)
                 .data
                 .cast::<QmiIndicationVoiceAllCallStatusOutputCallInformationCall>();
             let len = (*garray).len as usize;
             std::slice::from_raw_parts(ptr, len)
         };
-        let data: Vec<_> = data_ffi_slice
-            .iter()
-            .copied()
-            .map(CallInformation::from)
-            .collect();
-        let cb = &mut *(user_data.cast::<CallInfoCallback>());
-        cb(data);
+        let mut garray: *mut GArray = null_mut();
+        let ret = qmi_indication_voice_all_call_status_output_get_remote_party_number(
+            output,
+            &mut garray,
+            &mut error,
+        );
+        if ret == GFALSE || garray.is_null() {
+            tracing::error!(
+                "{}",
+                Into::<QmiError>::into((error, "call event party number"))
+            );
+        } else {
+            let remote_party_numbers = {
+                let ptr = (*garray)
+                    .data
+                    .cast::<QmiIndicationVoiceAllCallStatusOutputRemotePartyNumberCall>();
+                let len = (*garray).len as usize;
+                std::slice::from_raw_parts(ptr, len)
+            };
+
+            let calls = info_calls
+                .iter()
+                .map(|call| {
+                    let party_number = remote_party_numbers
+                        .iter()
+                        .find(|remote| remote.id == call.id)
+                        .map(|indic| {
+                            (
+                                from_glib_none(indic.type_.cast()),
+                                indic.presentation_indicator,
+                            )
+                        });
+                    VoiceCall {
+                        info: CallInformation::from(*call),
+                        presentation_indicator: party_number
+                            .as_ref()
+                            .map(|p| VoicePresentation::from_glib(p.1))
+                            .unwrap_or(VoicePresentation::Unavailable),
+                        number: party_number.map(|p| p.0).unwrap_or(String::new()),
+                    }
+                })
+                .collect();
+            let cb = &mut *(user_data.cast::<CallInfoCallback>());
+            cb(calls);
+        }
     }
 }
 
@@ -330,7 +416,7 @@ unsafe extern "C" fn set_all_call_status_cb(
     let output = qmi_client_voice_indication_register_finish(client.cast(), res, &mut error);
     if output.is_null() {
         let _drop = sender
-            .send(Err((error, "set_all_call_status_ cb finish").into()))
+            .send(Err((error, "set_all_call_status cb finish").into()))
             .inspect_err(cannot_send);
         return;
     }

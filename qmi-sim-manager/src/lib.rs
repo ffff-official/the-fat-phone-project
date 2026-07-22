@@ -1,18 +1,21 @@
-//! A Rust library for sending and receiving SMS and MMS messages through
-//! QMI-compatible cellular modems.
+//! A Rust library for interacting with QMI-compatible cellular modems.
 //!
 //! The library provides an asynchronous API for:
-//! - Sending SMS messages.
-//! - Receiving SMS messages and delivery reports.
+//! - Sending and receiving SMS messages.
+//! - Receiving SMS delivery reports.
 //! - Receiving MMS notifications (WAP Push).
-//! - Downloading MMS content.
-//! - Sending MMS messages.
+//! - Downloading and sending MMS messages.
+//! - Managing packet data connections.
+//! - Monitoring network registration and connectivity.
+//! - Managing UIM (SIM) cards and applications.
+//! - Placing, answering, and terminating voice calls.
+//! - Receiving asynchronous modem events, including SMS, MMS, and call status indications.
 //!
 //! # Alpha status
 //!
 //! This library is currently in an alpha stage. Its API and behavior may change before the first stable release.
 //!
-//! At the moment, MMS sending is limited to image attachments.
+//! At the moment, MMS sending is limited to image attachments and SIM features are limited.
 //!
 //! # Example
 //!
@@ -82,7 +85,16 @@ pub mod mms {
     pub use crate::messaging::mms::ResponseStatus;
     pub use crate::messaging::{MmsContent, MmsContentType, MmsStatus};
 }
-/// Native public import from libqmi-glib-rs.
+/// Types related to VOICE calls.
+pub mod voice_types {
+    pub use libqmi_glib_rs::voice_client::VoiceCall;
+}
+/// Types related to UIM.
+pub mod uim_types {
+    pub use libqmi_glib_types_rs::MessageUimGetCardStatusOutputCardStatusCardsElement;
+    pub use libqmi_glib_types_rs::MessageUimGetCardStatusOutputCardStatusCardsElementApplicationsElementV2;
+}
+/// *Native public import from libqmi-glib-rs.*
 pub mod libqmi {
     pub use libqmi_glib_rs::{Device, NasClient, UimClient, VoiceClient, WdsClient, WmsClient};
     pub use libqmi_glib_rs::{DmsClient, PdsClient};
@@ -90,7 +102,7 @@ pub mod libqmi {
         pub use libqmi_glib_types_rs::*;
     }
 }
-/// Error types exposed by the library.
+/// *Error types exposed by the library.*
 pub mod error {
     /// This error is returned when an internal conversion fails while decoding an SMS or MMS field.
     #[derive(Debug)]
@@ -113,7 +125,6 @@ use futures::Stream;
 use futures::channel::mpsc;
 use futures::channel::oneshot;
 use futures::task::{Context, Poll};
-use libqmi_glib_types_rs::IndicationVoiceAllCallStatusOutputCallInformationCall;
 use num_enum::TryFromPrimitiveError;
 
 use std::any::type_name;
@@ -164,7 +175,7 @@ pub enum SmEvent {
     /// An SMS status report has been received.
     SmsStatusReport(sms::SmsStatusReport),
     /// Voice call event
-    VoiceCallEvent(Vec<IndicationVoiceAllCallStatusOutputCallInformationCall>),
+    VoiceCallEvent(Vec<voice_types::VoiceCall>),
 }
 
 impl SmClientHandle {
@@ -488,11 +499,6 @@ impl SmClient {
     /// let client_handle = SmClientHandle::init(PathBuf::from("/dev/cdc-wdm1"))?;
     /// let client = client_handle.client();
     ///
-    /// let result = client
-    ///     .wds_raw_request(|client, _tk| async move { client.get_packet_service_status().await })
-    ///     .await?;
-    /// assert_eq!(result?, WdsConnectionStatus::Disconnected);
-    ///
     /// client.start_network("free").await?; // Activate a mobile data connection.
     ///
     /// let result = client
@@ -573,15 +579,51 @@ impl SmClient {
         let response = reply_receiver.await?;
         downcast_type(response)
     }
-    /// Make a raw request to the UIM service through libqmi-glib-rs.
+
+    /// Makes a raw request to the UIM service through `libqmi-glib-rs`.
     ///
     /// The function body executes on the GLib runtime.
-    /// The second parameter is a handle to the Tokio runtime, allowing Tokio tasks to be spawned if needed.
+    /// The second parameter is a handle to the Tokio runtime, allowing Tokio tasks
+    /// to be spawned if needed.
     ///
     /// # Warning
     ///
     /// This is a low-level API. The supplied closure is executed by the service
     /// engine and may return any `Send + 'static` value.
+    ///
+    /// ```no_run
+    /// use qmi_sim_manager::SmClientHandle;
+    /// use std::path::PathBuf;
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let client_handle = SmClientHandle::init(PathBuf::from("/dev/cdc-wdm1"))?;
+    /// let client = client_handle.client();
+    ///
+    /// // Retrieve the status of the available UIM cards and their applications.
+    /// let card_statuses = client
+    ///     .uim_raw_request(|client, _tk| async move {
+    ///         client.get_card_status().await
+    ///     })
+    ///     .await??;
+    ///
+    /// for card in card_statuses {
+    ///     println!("{card:#?}");
+    /// }
+    ///
+    /// // Verify the PIN1 code of the selected UIM application.
+    /// let remaining_retries = client
+    ///     .uim_raw_request(|client, _tk| async move {
+    ///         client.verify_pin("1234").await
+    ///     })
+    ///     .await??;
+    ///
+    /// println!("Remaining PIN retries: {remaining_retries}");
+    ///
+    /// client_handle.shutdown().await?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub async fn uim_raw_request<T, F, Fut>(&self, executor: F) -> SmResult<T>
     where
         T: Send + 'static,
@@ -609,15 +651,62 @@ impl SmClient {
         downcast_type(response)
     }
 
-    /// Make a raw request to the VOICE service through libqmi-glib-rs.
+    /// Makes a raw request to the QMI Voice service through `libqmi-glib-rs`.
     ///
     /// The function body executes on the GLib runtime.
-    /// The second parameter is a handle to the Tokio runtime, allowing Tokio tasks to be spawned if needed.
+    /// The second parameter is a handle to the Tokio runtime, allowing Tokio tasks
+    /// to be spawned if needed.
     ///
     /// # Warning
     ///
     /// This is a low-level API. The supplied closure is executed by the service
     /// engine and may return any `Send + 'static` value.
+    ///
+    /// ```no_run
+    /// use qmi_sim_manager::{SmClientHandle, SmEvent};
+    /// use std::{path::PathBuf, time::Duration};
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let client_handle = SmClientHandle::init(PathBuf::from("/dev/cdc-wdm1"))?;
+    /// let client = client_handle.client();
+    /// let mut events = client.event_stream();
+    ///
+    /// // Enable asynchronous call-status indications.
+    /// client
+    ///     .voice_raw_request(|client, _tk| async move {
+    ///         client.set_all_call_status(true).await
+    ///     })
+    ///     .await??;
+    ///
+    /// // Start an outgoing call.
+    /// let call_id = client
+    ///     .voice_raw_request(|client, _tk| async move {
+    ///         client.dial_call("0612345678").await
+    ///     })
+    ///     .await??;
+    ///
+    /// // Wait until the modem reports that the call has started.
+    /// while let Some(event) = events.next_event().await {
+    ///     if let SmEvent::VoiceCallEvent(call_event) = event {
+    ///         if call_event.is_call_begin(call_id) {
+    ///             tokio::time::sleep(Duration::from_secs(10)).await;
+    ///             break;
+    ///         }
+    ///     }
+    /// }
+    ///
+    /// // Terminate the call after ten seconds.
+    /// client
+    ///     .voice_raw_request(move |client, _tk| async move {
+    ///         client.end_call(call_id).await
+    ///     })
+    ///     .await??;
+    ///
+    /// client_handle.shutdown().await?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub async fn voice_raw_request<T, F, Fut>(&self, executor: F) -> SmResult<T>
     where
         T: Send + 'static,

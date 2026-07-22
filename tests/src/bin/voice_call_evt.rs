@@ -22,7 +22,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             client
                 .set_all_call_status(Box::new(move |call_info_vec| {
                     for item in call_info_vec {
-                        tracing::info!("mode = {:?}", item.mode);
+                        tracing::info!("mode = {:?}", item.info.mode);
                     }
                 }))
                 .await

@@ -24,6 +24,28 @@ use std::ptr::null_mut;
 type CardStatusOutputElem = MessageUimGetCardStatusOutputCardStatusCardsElement;
 type QmiCardStatusOutputElem = QmiMessageUimGetCardStatusOutputCardStatusCardsElement;
 
+/// A client for interacting with the QMI UIM service.
+///
+/// [`UimClient`] provides asynchronous operations for accessing and managing
+/// User Identity Modules through a QMI-compatible modem.
+///
+/// It can be used to:
+///
+/// - retrieve the status of available UIM cards;
+/// - inspect the applications exposed by a card, such as SIM, USIM, ISIM, or
+///   CSIM applications;
+/// - query PIN, PUK, and personalization lock states;
+/// - verify, change, enable, disable, or unblock PIN codes;
+/// - access files stored in the UIM file system;
+/// - receive notifications when the card state changes.
+///
+/// A modem may expose multiple cards, slots, or applications. Card-level
+/// information, such as the universal PIN state, is reported separately from
+/// application-specific information, such as PIN1, PIN2, and the application
+/// identifier.
+///
+/// The underlying QMI client is reference-counted and remains valid while at
+/// least one [`UimClient`] instance exists.
 #[derive(Debug)]
 pub struct UimClient {
     client: NonNull<QmiClientUim>,
@@ -106,6 +128,30 @@ impl UimClient {
         rx.await.map_err(|_| QmiError::cb_droped())?
     }
 
+    /// Retrieves the current status of all UIM cards.
+    ///
+    /// This operation queries the modem for the state of every available UIM card
+    /// and the applications they expose. The returned information includes:
+    ///
+    /// - the overall card state;
+    /// - the universal PIN (UPIN) state and remaining retry counters;
+    /// - any card-level error;
+    /// - the list of applications available on each card, including their
+    ///   application type, state, personalization status, PIN1/PIN2 states,
+    ///   retry counters, and application identifier (AID).
+    ///
+    /// Most devices expose a single card, but multi-SIM devices may return
+    /// multiple entries, one for each card or slot.
+    ///
+    /// # Returns
+    ///
+    /// On success, returns a vector describing the status of every detected UIM
+    /// card.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`QmiError`] if the request fails or if the modem reports an
+    /// error while retrieving the card status.
     pub async fn get_card_status(&self) -> QmiResult<Vec<CardStatusOutputElem>> {
         let (tx, rx) = oneshot::channel::<QmiResult<Vec<CardStatusOutputElem>>>();
 
@@ -123,6 +169,13 @@ impl UimClient {
         rx.await.map_err(|_| QmiError::cb_droped())?
     }
 
+    /// Verifies the PIN1 code of the selected UIM application.
+    ///
+    /// On success, returns the number of remaining PIN verification attempts.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`QmiError`] if the PIN is invalid or the request fails.
     pub async fn verify_pin(&self, pin_code: impl AsRef<str>) -> QmiResult<u8> {
         let (tx, rx) = oneshot::channel::<QmiResult<u8>>();
 
