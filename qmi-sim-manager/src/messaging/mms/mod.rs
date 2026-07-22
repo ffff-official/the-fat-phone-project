@@ -439,7 +439,7 @@ pub(crate) enum WspWellKnownContentType {
 /// - `0xE0..=0xEB`: Permanent failures.
 #[allow(missing_docs)]
 #[repr(u8)]
-#[derive(Debug, TryFromPrimitive, PartialEq, Eq)]
+#[derive(Debug, TryFromPrimitive, PartialEq, Eq, Clone, Copy, Hash)]
 pub enum ResponseStatus {
     /// The MMS was accepted by the MMSC.
     Ok = 0x80,

@@ -32,7 +32,7 @@ pub(crate) struct SmsDeliverTpdu {
 }
 
 /// Represents a received SMS message.
-#[derive(Debug)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct Sms {
     /// The sender's phone number.
     pub remote_address: String,
@@ -49,7 +49,7 @@ pub struct Sms {
 /// Indicates that an MMS is available for download.
 ///
 /// The MMS can be retrieved from the URL stored in [`SmsWapPush::content_location`].
-#[derive(Debug)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct SmsWapPush {
     /// The sender's phone number.
     pub remote_address: String,

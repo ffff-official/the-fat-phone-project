@@ -70,7 +70,7 @@ type CallInfoCallback = Box<dyn FnMut(Vec<VoiceCall>)>;
 /// This structure combines the call information reported in the
 /// `all-call-status` indication with the remote party number, providing a
 /// single, convenient view of the call.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct VoiceCall {
     /// General information about the call.
     pub info: CallInformation,

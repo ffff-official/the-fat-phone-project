@@ -433,7 +433,7 @@ where
 }
 
 /// Current Ipv4 settings.
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub struct Ipv4NetworkSettings {
     pub ipv4: Option<guint32>,
     pub gw: Option<guint32>,

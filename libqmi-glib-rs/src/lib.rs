@@ -90,7 +90,7 @@ fn cannot_send<T: std::fmt::Debug>(result: &QmiResult<T>) {
 
 pub type QmiResult<T> = Result<T, QmiError>;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct QmiError {
     pub message: String,
     pub context: &'static str,

@@ -83,7 +83,7 @@ pub(crate) enum UdhContent {
 }
 
 /// The ConcatenatedShortMessages structure indicates the position of the current SMS within a concatenated SMS message.
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub struct ConcatenatedShortMessages {
     /// All message parts share the same reference number.
     pub reference: u16,

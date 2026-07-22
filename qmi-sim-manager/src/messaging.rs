@@ -44,7 +44,7 @@ impl<T, I: SliceIndex<[T]> + Debug + Clone> SliceResultExt<T, I> for [T] {
 }
 
 /// Returned when decoding attempts to read beyond the available SMS or MMS data.
-#[derive(Debug)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct MessageOutOfBound {
     /// The byte index at which the out-of-bounds access occurred.
     pub index: String,
@@ -196,6 +196,7 @@ pub(crate) async fn get_mms(url: String) -> SmResult<Vec<MmsContent>> {
     }
 }
 
+#[derive(Clone, Eq, PartialEq, Hash)]
 /// Represents a content part of an MMS.
 pub struct MmsContent {
     /// The raw content of the part.
@@ -216,7 +217,7 @@ impl fmt::Debug for MmsContent {
 }
 
 /// Represents the response returned after submitting an MMS.
-#[derive(Debug)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct MmsStatus {
     /// The identifier assigned to the submitted MMS.
     pub message_id: String,
@@ -225,7 +226,7 @@ pub struct MmsStatus {
 }
 
 /// Represents the MIME type of an MMS content part.
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub enum MmsContentType {
     /// `image/jpeg`
     ImageJpeg,

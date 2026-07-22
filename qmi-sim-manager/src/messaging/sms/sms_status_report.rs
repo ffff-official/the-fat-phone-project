@@ -29,7 +29,7 @@ pub(crate) struct SmsStatusReportTpdu {
 ///
 /// Commonly referred to as a *delivery receipt*, this report indicates the
 /// delivery status of a previously sent SMS message.
-#[derive(Debug)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct SmsStatusReport {
     /// The recipient's phone number.
     pub remote_address: String,
@@ -109,7 +109,7 @@ impl fmt::Display for SmsStatusReportTpdu {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub enum TemporaryCause {
     Congestion,
     SmeBusy,
@@ -120,7 +120,7 @@ pub enum TemporaryCause {
     Reserved(u8),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub enum PermanentCause {
     RemoteProcedureError,
     IncompatibleDestination,
@@ -136,7 +136,7 @@ pub enum PermanentCause {
 }
 
 /// The current status indicated by the delivery receipt.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub enum TpStatus {
     /// The message was successfully delivered to the recipient.
     Delivered,

@@ -105,7 +105,7 @@ pub mod libqmi {
 /// *Error types exposed by the library.*
 pub mod error {
     /// This error is returned when an internal conversion fails while decoding an SMS or MMS field.
-    #[derive(Debug)]
+    #[derive(Debug, Clone, Eq, PartialEq, Hash)]
     pub struct Primitive {
         pub enum_type: &'static str,
         pub invalid_value: String,
@@ -119,7 +119,7 @@ pub use libqmi_glib_rs::QmiResult;
 
 use engine::{GetMmsRequest, Request, SendMmsRequest, ShutDownRequest, SmsRequest};
 use engine::{StartNetworkRequest, StopNetworkRequest};
-use engine::{UimServiceRequest, WdsServiceRequest, WmsServiceRequest};
+use engine::{UimServiceRequest, VoiceServiceRequest, WdsServiceRequest, WmsServiceRequest};
 
 use futures::Stream;
 use futures::channel::mpsc;
@@ -135,8 +135,6 @@ use std::str::Utf8Error;
 use std::string::{FromUtf8Error, FromUtf16Error};
 use std::sync::Arc;
 use std::sync::mpsc::sync_channel;
-
-use crate::engine::VoiceServiceRequest;
 
 /// The main handle for interacting with the client.
 ///
