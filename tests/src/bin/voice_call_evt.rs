@@ -18,7 +18,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Add a second custom listener
     let result = client
-        .voice_raw_request(|mut client, _tk| async move {
+        .with_voice(|mut client, _tk| async move {
             client
                 .set_all_call_status(Box::new(move |call_info_vec| {
                     for item in call_info_vec {

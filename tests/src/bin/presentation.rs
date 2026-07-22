@@ -22,13 +22,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let client = client_handle.client();
 
     let result = client
-        .wds_raw_request(|client, _tk| async move { client.get_packet_service_status().await })
+        .with_wds(|client, _tk| async move { client.get_packet_service_status().await })
         .await?;
 
     dbg!(result?);
 
     let result = client
-        .wds_raw_request(|client, tk| async move {
+        .with_wds(|client, tk| async move {
             let _r = tk
                 .spawn(async move {
                     let _v = tokio::fs::read("bibendum.jpg").await;

@@ -14,21 +14,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let client = client_handle.client();
 
     let result = client
-        .wds_raw_request(|client, _tk| async move { client.get_packet_service_status().await })
+        .with_wds(|client, _tk| async move { client.get_packet_service_status().await })
         .await?;
     assert_eq!(result?, WdsConnectionStatus::Disconnected);
 
     client.start_network("free").await?; // Activate a mobile data connection.
 
     let result = client
-        .wds_raw_request(|client, _tk| async move { client.get_packet_service_status().await })
+        .with_wds(|client, _tk| async move { client.get_packet_service_status().await })
         .await?;
     assert_eq!(result?, WdsConnectionStatus::Connected);
 
     client.stop_network().await?;
 
     let result = client
-        .wds_raw_request(|client, _tk| async move { client.get_packet_service_status().await })
+        .with_wds(|client, _tk| async move { client.get_packet_service_status().await })
         .await?;
     assert_eq!(result?, WdsConnectionStatus::Disconnected);
 

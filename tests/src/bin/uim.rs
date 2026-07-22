@@ -14,17 +14,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let client = client_handle.client();
 
     let result = client
-        .uim_raw_request(|client, _tk| async move { client.get_card_status().await })
+        .with_uim(|client, _tk| async move { client.get_card_status().await })
         .await?;
     dbg!(result)?;
 
     let result = client
-        .uim_raw_request(|client, _tk| async move { client.verify_pin("1234").await })
+        .with_uim(|client, _tk| async move { client.verify_pin("1234").await })
         .await?;
     dbg!(result)?;
 
     let result = client
-        .uim_raw_request(|client, _tk| async move { client.get_card_status().await })
+        .with_uim(|client, _tk| async move { client.get_card_status().await })
         .await?;
     dbg!(result)?;
 

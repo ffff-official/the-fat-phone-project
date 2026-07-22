@@ -83,6 +83,14 @@ pub struct VoiceCall {
     pub presentation_indicator: VoicePresentation,
 }
 
+impl std::ops::Deref for VoiceCall {
+    type Target = CallInformation;
+
+    fn deref(&self) -> &Self::Target {
+        &self.info
+    }
+}
+
 impl VoiceClient {
     #[allow(dead_code)]
     pub(crate) fn get_inner_device(&self) -> Device {

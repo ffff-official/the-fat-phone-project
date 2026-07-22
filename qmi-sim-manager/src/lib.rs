@@ -66,7 +66,7 @@
 //! # Future development
 //!
 //! This library is under active development.
-//! Future releases are expected to add support for additional modem features, including voice calls, SIM card management, mobile network management, GPS, and more.
+//! Future releases are expected to add support for additional modem features, including better SIM card management, mobile network gateway, GPS, and more.
 #![allow(clippy::enum_variant_names)]
 
 pub(crate) mod engine;
@@ -86,11 +86,11 @@ pub mod mms {
     pub use crate::messaging::{MmsContent, MmsContentType, MmsStatus};
 }
 /// Types related to VOICE calls.
-pub mod voice_types {
+pub mod voice {
     pub use libqmi_glib_rs::voice_client::VoiceCall;
 }
 /// Types related to UIM.
-pub mod uim_types {
+pub mod uim {
     pub use libqmi_glib_types_rs::MessageUimGetCardStatusOutputCardStatusCardsElement;
     pub use libqmi_glib_types_rs::MessageUimGetCardStatusOutputCardStatusCardsElementApplicationsElementV2;
 }
@@ -173,7 +173,7 @@ pub enum SmEvent {
     /// An SMS status report has been received.
     SmsStatusReport(sms::SmsStatusReport),
     /// Voice call event
-    VoiceCallEvent(Vec<voice_types::VoiceCall>),
+    VoiceCallEvent(Vec<voice::VoiceCall>),
 }
 
 impl SmClientHandle {
@@ -500,14 +500,14 @@ impl SmClient {
     /// client.start_network("free").await?; // Activate a mobile data connection.
     ///
     /// let result = client
-    ///     .wds_raw_request(|client, _tk| async move { client.get_packet_service_status().await })
+    ///     .with_wds(|client, _tk| async move { client.get_packet_service_status().await })
     ///     .await?;
     /// assert_eq!(result?, WdsConnectionStatus::Connected);
     ///
     /// client.stop_network().await?;
     ///
     /// let result = client
-    ///     .wds_raw_request(|client, _tk| async move { client.get_packet_service_status().await })
+    ///     .with_wds(|client, _tk| async move { client.get_packet_service_status().await })
     ///     .await?;
     /// assert_eq!(result?, WdsConnectionStatus::Disconnected);
     ///
@@ -515,7 +515,7 @@ impl SmClient {
     /// #   Ok(())
     /// # }
     /// ```
-    pub async fn wds_raw_request<T, F, Fut>(&self, executor: F) -> SmResult<T>
+    pub async fn with_wds<T, F, Fut>(&self, executor: F) -> SmResult<T>
     where
         T: Send + 'static,
         F: FnOnce(libqmi_glib_rs::WdsClient, tokio::runtime::Handle) -> Fut + Send + 'static,
@@ -551,7 +551,7 @@ impl SmClient {
     ///
     /// This is a low-level API. The supplied closure is executed by the service
     /// engine and may return any `Send + 'static` value.
-    pub async fn wms_raw_request<T, F, Fut>(&self, executor: F) -> SmResult<T>
+    pub async fn with_wms<T, F, Fut>(&self, executor: F) -> SmResult<T>
     where
         T: Send + 'static,
         F: FnOnce(libqmi_glib_rs::WmsClient, tokio::runtime::Handle) -> Fut + Send + 'static,
@@ -600,7 +600,7 @@ impl SmClient {
     ///
     /// // Retrieve the status of the available UIM cards and their applications.
     /// let card_statuses = client
-    ///     .uim_raw_request(|client, _tk| async move {
+    ///     .with_uim(|client, _tk| async move {
     ///         client.get_card_status().await
     ///     })
     ///     .await??;
@@ -611,7 +611,7 @@ impl SmClient {
     ///
     /// // Verify the PIN1 code of the selected UIM application.
     /// let remaining_retries = client
-    ///     .uim_raw_request(|client, _tk| async move {
+    ///     .with_uim(|client, _tk| async move {
     ///         client.verify_pin("1234").await
     ///     })
     ///     .await??;
@@ -622,7 +622,7 @@ impl SmClient {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn uim_raw_request<T, F, Fut>(&self, executor: F) -> SmResult<T>
+    pub async fn with_uim<T, F, Fut>(&self, executor: F) -> SmResult<T>
     where
         T: Send + 'static,
         F: FnOnce(libqmi_glib_rs::UimClient, tokio::runtime::Handle) -> Fut + Send + 'static,
@@ -672,14 +672,14 @@ impl SmClient {
     ///
     /// // Enable asynchronous call-status indications.
     /// client
-    ///     .voice_raw_request(|client, _tk| async move {
+    ///     .with_voice(|client, _tk| async move {
     ///         client.set_all_call_status(true).await
     ///     })
     ///     .await??;
     ///
     /// // Start an outgoing call.
     /// let call_id = client
-    ///     .voice_raw_request(|client, _tk| async move {
+    ///     .with_voice(|client, _tk| async move {
     ///         client.dial_call("0612345678").await
     ///     })
     ///     .await??;
@@ -696,7 +696,7 @@ impl SmClient {
     ///
     /// // Terminate the call after ten seconds.
     /// client
-    ///     .voice_raw_request(move |client, _tk| async move {
+    ///     .with_voice(move |client, _tk| async move {
     ///         client.end_call(call_id).await
     ///     })
     ///     .await??;
@@ -705,7 +705,7 @@ impl SmClient {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn voice_raw_request<T, F, Fut>(&self, executor: F) -> SmResult<T>
+    pub async fn with_voice<T, F, Fut>(&self, executor: F) -> SmResult<T>
     where
         T: Send + 'static,
         F: FnOnce(libqmi_glib_rs::VoiceClient, tokio::runtime::Handle) -> Fut + Send + 'static,
