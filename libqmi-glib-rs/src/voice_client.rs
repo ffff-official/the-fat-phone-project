@@ -11,7 +11,7 @@ use libqmi_glib_types_rs::{
     DeviceReleaseClientFlags, IndicationVoiceAllCallStatusOutputCallInformationCall, Service,
 };
 
-use std::ffi::c_void;
+use std::ffi::{CString, c_void};
 use std::ptr::NonNull;
 use std::ptr::null_mut;
 
@@ -122,7 +122,10 @@ impl VoiceClient {
             );
             if handler_id == 0 {
                 drop(Box::from_raw(cb_ptr.cast::<CallInfoCallback>()));
-                Err(QmiError::new("handler id = 0", "set_all_call_status"))?;
+                Err(QmiError::new(
+                    "handler id = 0",
+                    "set_all_call_status g_signal",
+                ))?;
             } else {
                 tracing::debug!("Receiving all call status handler id = {}", handler_id);
             }
@@ -138,7 +141,7 @@ impl VoiceClient {
             if ret == 0 {
                 qmi_message_voice_indication_register_input_unref(input);
                 gobject_sys::g_signal_handler_disconnect(self.client.as_ptr().cast(), handler_id);
-                Err((error, "set_all_call_status"))?;
+                Err((error, "set_all_call_status set_call_notification_event"))?;
             }
 
             let (tx, rx) = oneshot::channel::<QmiResult<()>>();
@@ -160,6 +163,89 @@ impl VoiceClient {
             tracing::debug!("VOICE ready, waiting for events...");
             ret
         }
+    }
+
+    /// Asynchronously sends a Dial Call request to the device.
+    pub async fn dial_call(&self, number: impl AsRef<str>) -> QmiResult<u8> {
+        let number = CString::new(number.as_ref())
+            .map_err(|_e| QmiError::new("Phone number contains a NUL byte", "dial_call"))?;
+
+        let (tx, rx) = oneshot::channel::<QmiResult<u8>>();
+
+        let input = unsafe { qmi_message_voice_dial_call_input_new() };
+
+        let mut error: *mut GError = null_mut();
+        let ret = unsafe {
+            qmi_message_voice_dial_call_input_set_calling_number(input, number.as_ptr(), &mut error)
+        };
+        if ret == GFALSE {
+            unsafe { qmi_message_voice_dial_call_input_unref(input) }
+            return Err((error, "dial_call set_calling_number").into());
+        }
+        unsafe {
+            qmi_client_voice_dial_call(
+                self.client.as_ptr(),
+                input,
+                OPERATION_TIMEOUT,
+                null_mut(),
+                Some(dial_call_cb),
+                Box::into_raw(Box::new(tx)).cast(),
+            );
+            qmi_message_voice_dial_call_input_unref(input);
+        }
+        rx.await.map_err(|_| QmiError::cb_droped())?
+    }
+
+    /// Asynchronously sends a Answer Call request to the device.
+    pub async fn answer_call(&self, id: u8) -> QmiResult<u8> {
+        let (tx, rx) = oneshot::channel::<QmiResult<u8>>();
+
+        let input = unsafe { qmi_message_voice_answer_call_input_new() };
+
+        let mut error: *mut GError = null_mut();
+        let ret = unsafe { qmi_message_voice_answer_call_input_set_call_id(input, id, &mut error) };
+        if ret == GFALSE {
+            unsafe { qmi_message_voice_answer_call_input_unref(input) }
+            return Err((error, "answer_call set_call_id").into());
+        }
+        unsafe {
+            qmi_client_voice_answer_call(
+                self.client.as_ptr(),
+                input,
+                OPERATION_TIMEOUT,
+                null_mut(),
+                Some(answer_call_cb),
+                Box::into_raw(Box::new(tx)).cast(),
+            );
+            qmi_message_voice_answer_call_input_unref(input);
+        }
+        rx.await.map_err(|_| QmiError::cb_droped())?
+    }
+
+    /// Asynchronously sends a End Call request to the device.
+    pub async fn end_call(&self, id: u8) -> QmiResult<u8> {
+        let (tx, rx) = oneshot::channel::<QmiResult<u8>>();
+
+        let input = unsafe { qmi_message_voice_end_call_input_new() };
+
+        let mut error: *mut GError = null_mut();
+        let ret = unsafe { qmi_message_voice_end_call_input_set_call_id(input, id, &mut error) };
+        if ret == GFALSE {
+            unsafe { qmi_message_voice_end_call_input_unref(input) }
+            return Err((error, "end_call set_call_id").into());
+        }
+        unsafe {
+            qmi_client_voice_end_call(
+                self.client.as_ptr(),
+                input,
+                OPERATION_TIMEOUT,
+                null_mut(),
+                Some(end_call_cb),
+                Box::into_raw(Box::new(tx)).cast(),
+            );
+            qmi_message_voice_end_call_input_unref(input);
+        }
+        rx.await.map_err(|_| QmiError::cb_droped())?
     }
 }
 
@@ -213,7 +299,7 @@ unsafe extern "C" fn all_call_status_cb(
         &mut garray,
         &mut error,
     );
-    if ret == false.into_glib() || garray.is_null() {
+    if ret == GFALSE || garray.is_null() {
         tracing::error!("{}", Into::<QmiError>::into((error, "call event")));
     } else {
         let data_ffi_slice = {
@@ -244,7 +330,7 @@ unsafe extern "C" fn set_all_call_status_cb(
     let output = qmi_client_voice_indication_register_finish(client.cast(), res, &mut error);
     if output.is_null() {
         let _drop = sender
-            .send(Err((error, "voice all call status cb").into()))
+            .send(Err((error, "set_all_call_status_ cb finish").into()))
             .inspect_err(cannot_send);
         return;
     }
@@ -253,7 +339,7 @@ unsafe extern "C" fn set_all_call_status_cb(
     qmi_message_voice_indication_register_output_unref(output);
 
     let output: Result<(), _> = match ret {
-        GFALSE => Err((error, "voice all call status cb").into()),
+        GFALSE => Err((error, "set_all_call_status cb get_result").into()),
         _ => Ok(()),
     };
     drop(sender.send(output).inspect_err(cannot_send));
@@ -263,4 +349,99 @@ unsafe extern "C" fn set_all_call_status_cb(
 unsafe extern "C" fn destroy_all_call_status_data(data: *mut c_void, _closure: *mut GClosure) {
     tracing::debug!("destroy_all_call_status_data");
     drop(Box::from_raw(data.cast::<CallInfoCallback>()));
+}
+
+unsafe extern "C" fn dial_call_cb(
+    client: *mut GObject,
+    res: *mut GAsyncResult,
+    user_data: *mut c_void,
+) {
+    let sender = Box::from_raw(user_data.cast::<oneshot::Sender<QmiResult<u8>>>());
+    let mut error: *mut GError = null_mut();
+
+    let dial_output = qmi_client_voice_dial_call_finish(client.cast(), res, &mut error);
+    if dial_output.is_null() {
+        let _drop = sender
+            .send(Err((error, "dial_call cb finish").into()))
+            .inspect_err(cannot_send);
+        return;
+    }
+    let output = if qmi_message_voice_dial_call_output_get_result(dial_output, &mut error) == GFALSE
+    {
+        Err((error, "dial_call cb get_result").into())
+    } else {
+        let mut call_id: u8 = 0;
+        let ret =
+            qmi_message_voice_dial_call_output_get_call_id(dial_output, &mut call_id, &mut error);
+        match ret {
+            GFALSE => Err((error, "dial_call cb get_call_id").into()),
+            _ => Ok(call_id),
+        }
+    };
+    qmi_message_voice_dial_call_output_unref(dial_output);
+    drop(sender.send(output).inspect_err(cannot_send));
+}
+
+unsafe extern "C" fn answer_call_cb(
+    client: *mut GObject,
+    res: *mut GAsyncResult,
+    user_data: *mut c_void,
+) {
+    let sender = Box::from_raw(user_data.cast::<oneshot::Sender<QmiResult<u8>>>());
+    let mut error: *mut GError = null_mut();
+
+    let answer_output = qmi_client_voice_answer_call_finish(client.cast(), res, &mut error);
+    if answer_output.is_null() {
+        let _drop = sender
+            .send(Err((error, "answer_call cb finish").into()))
+            .inspect_err(cannot_send);
+        return;
+    }
+    let output =
+        if qmi_message_voice_answer_call_output_get_result(answer_output, &mut error) == GFALSE {
+            Err((error, "answer_call cb get_result").into())
+        } else {
+            let mut call_id: u8 = 0;
+            let ret = qmi_message_voice_answer_call_output_get_call_id(
+                answer_output,
+                &mut call_id,
+                &mut error,
+            );
+            match ret {
+                GFALSE => Err((error, "answer_call cb get_call_id").into()),
+                _ => Ok(call_id),
+            }
+        };
+    qmi_message_voice_answer_call_output_unref(answer_output);
+    drop(sender.send(output).inspect_err(cannot_send));
+}
+
+unsafe extern "C" fn end_call_cb(
+    client: *mut GObject,
+    res: *mut GAsyncResult,
+    user_data: *mut c_void,
+) {
+    let sender = Box::from_raw(user_data.cast::<oneshot::Sender<QmiResult<u8>>>());
+    let mut error: *mut GError = null_mut();
+
+    let end_output = qmi_client_voice_end_call_finish(client.cast(), res, &mut error);
+    if end_output.is_null() {
+        let _drop = sender
+            .send(Err((error, "end_call cb finish").into()))
+            .inspect_err(cannot_send);
+        return;
+    }
+    let output = if qmi_message_voice_end_call_output_get_result(end_output, &mut error) == GFALSE {
+        Err((error, "end_call cb get_result").into())
+    } else {
+        let mut call_id: u8 = 0;
+        let ret =
+            qmi_message_voice_end_call_output_get_call_id(end_output, &mut call_id, &mut error);
+        match ret {
+            GFALSE => Err((error, "end_call cb get_call_id").into()),
+            _ => Ok(call_id),
+        }
+    };
+    qmi_message_voice_end_call_output_unref(end_output);
+    drop(sender.send(output).inspect_err(cannot_send));
 }
