@@ -70,7 +70,6 @@ pub(crate) mod engine;
 pub(crate) mod init;
 pub(crate) mod messaging;
 pub(crate) mod network;
-pub(crate) mod voice;
 
 /// Types related to SMS messages.
 pub mod sms {

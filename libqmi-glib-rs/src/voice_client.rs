@@ -2,7 +2,6 @@ use super::*;
 
 use crate::sys::*;
 
-use futures::channel::mpsc::UnboundedSender;
 use futures::channel::oneshot;
 use gio_sys::GAsyncResult;
 use glib_sys::{GArray, GFALSE};
@@ -44,6 +43,7 @@ impl Clone for VoiceClient {
 }
 
 type CallInformation = IndicationVoiceAllCallStatusOutputCallInformationCall;
+type CallInfoCallback = Box<dyn FnMut(Vec<CallInformation>)>;
 
 impl VoiceClient {
     #[allow(dead_code)]
@@ -102,26 +102,26 @@ impl VoiceClient {
 
     /// Asynchronously sends a Set All Call Status request to the device.
     /// The sender parameter is the communication channel through which newly received new call states
-    pub async fn set_all_call_status(
-        &mut self,
-        sender: UnboundedSender<Vec<CallInformation>>,
-    ) -> QmiResult<()> {
+    pub async fn set_all_call_status(&mut self, cb: CallInfoCallback) -> QmiResult<()> {
         unsafe {
-            let mpsc_ptr = Box::into_raw(Box::new(sender)).cast();
+            let cb_ptr = Box::into_raw(Box::new(cb)).cast();
             let handler_id = gobject_sys::g_signal_connect_data(
                 self.client.as_ptr().cast(),
                 c"all-call-status".as_ptr(),
-                Some(std::mem::transmute(
-                    all_call_status_cb as unsafe extern "C" fn(_, _, _),
-                )),
-                mpsc_ptr,
+                Some(std::mem::transmute::<
+                    unsafe extern "C" fn(
+                        *mut gobject_sys::GObject,
+                        *mut libqmi_glib_sys::QmiIndicationVoiceAllCallStatusOutput,
+                        *mut std::ffi::c_void,
+                    ),
+                    unsafe extern "C" fn(),
+                >(all_call_status_cb)),
+                cb_ptr,
                 Some(destroy_all_call_status_data),
                 0,
             );
             if handler_id == 0 {
-                drop(Box::from_raw(
-                    mpsc_ptr.cast::<UnboundedSender<Vec<CallInformation>>>(),
-                ));
+                drop(Box::from_raw(cb_ptr.cast::<CallInfoCallback>()));
                 Err(QmiError::new("handler id = 0", "set_all_call_status"))?;
             } else {
                 tracing::debug!("Receiving all call status handler id = {}", handler_id);
@@ -228,11 +228,8 @@ unsafe extern "C" fn all_call_status_cb(
             .copied()
             .map(CallInformation::from)
             .collect();
-        let sender = &*(user_data.cast::<UnboundedSender<Vec<CallInformation>>>());
-
-        if sender.unbounded_send(data).is_err() {
-            tracing::warn!("VOICE event receiver has been dropped");
-        }
+        let cb = &mut *(user_data.cast::<CallInfoCallback>());
+        cb(data);
     }
 }
 
@@ -265,5 +262,5 @@ unsafe extern "C" fn set_all_call_status_cb(
 // Lauched when no more instances of GObject references QmiClientVoice exists
 unsafe extern "C" fn destroy_all_call_status_data(data: *mut c_void, _closure: *mut GClosure) {
     tracing::debug!("destroy_all_call_status_data");
-    drop(Box::from_raw(data.cast::<UnboundedSender<()>>()));
+    drop(Box::from_raw(data.cast::<CallInfoCallback>()));
 }

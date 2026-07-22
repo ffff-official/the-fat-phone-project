@@ -67,8 +67,14 @@ pub(crate) async fn start_messaging(
     sm_event_sender: mpsc::UnboundedSender<SmEvent>,
 ) -> SmResult<JoinHandle<()>> {
     tracing::debug!("prepare_messaging :");
-    let (tpdu_sender, tpdu_receiver) = futures::channel::mpsc::unbounded();
-    wms_client.set_event_report(tpdu_sender).await?;
+    let (mut tpdu_sender, tpdu_receiver) = futures::channel::mpsc::unbounded();
+    wms_client
+        .set_event_report(Box::new(move |tpdu, format| {
+            if let Err(e) = tpdu_sender.start_send((tpdu.to_vec(), format)) {
+                tracing::warn!("set_event_report sender : cannot send : {:?}", e);
+            }
+        }))
+        .await?;
     let mut routes = wms_client.get_routes().await?;
     for route in routes.iter_mut() {
         route.receipt_action = WmsReceiptAction::TransferAndAck;

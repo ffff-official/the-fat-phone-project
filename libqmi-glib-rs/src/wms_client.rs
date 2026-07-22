@@ -1,7 +1,6 @@
 use super::*;
 
 use crate::sys::*;
-use futures::channel::mpsc::UnboundedSender;
 use futures::channel::oneshot;
 use gio_sys::GAsyncResult;
 use glib_sys::{
@@ -20,6 +19,7 @@ use std::ptr::{NonNull, null_mut};
 
 type Route = MessageWmsGetRoutesOutputRouteListElement;
 type QmiRoute = QmiMessageWmsGetRoutesOutputRouteListElement;
+type EventReportCallback = Box<dyn FnMut(&[u8], WmsMessageFormat)>;
 
 /// A client for interacting with the Wireless Messaging Service (WMS) interface of a QMI device.
 #[derive(Debug)]
@@ -106,26 +106,26 @@ impl WmsClient {
 
     /// Asynchronously sends a Set Event Report request to the device.
     /// The sender parameter is the communication channel through which newly received SMS PDUs are sent.
-    pub async fn set_event_report(
-        &mut self,
-        sender: UnboundedSender<(Vec<u8>, WmsMessageFormat)>,
-    ) -> QmiResult<()> {
+    pub async fn set_event_report(&mut self, cb: EventReportCallback) -> QmiResult<()> {
         unsafe {
-            let mpsc_ptr = Box::into_raw(Box::new(sender)).cast();
+            let cb_ptr = Box::into_raw(Box::new(cb)).cast();
             let handler_id = gobject_sys::g_signal_connect_data(
                 self.client.as_ptr().cast(),
                 c"event-report".as_ptr(),
-                Some(std::mem::transmute(
-                    event_report_cb as unsafe extern "C" fn(_, _, _),
-                )),
-                mpsc_ptr,
+                Some(std::mem::transmute::<
+                    unsafe extern "C" fn(
+                        *mut gobject_sys::GObject,
+                        *mut libqmi_glib_sys::QmiIndicationWmsEventReportOutput,
+                        *mut std::ffi::c_void,
+                    ),
+                    unsafe extern "C" fn(),
+                >(event_report_cb)),
+                cb_ptr,
                 Some(destroy_event_report_data),
                 0,
             );
             if handler_id == 0 {
-                drop(Box::from_raw(
-                    mpsc_ptr.cast::<UnboundedSender<(Vec<u8>, WmsMessageFormat)>>(),
-                ));
+                drop(Box::from_raw(cb_ptr.cast::<EventReportCallback>()));
                 Err(QmiError::new("handler id = 0", "set_event_report"))?;
             } else {
                 tracing::debug!("Receiving evt report handler id = {}", handler_id);
@@ -348,29 +348,18 @@ unsafe extern "C" fn event_report_cb(
             let ptr = (*value_transfer_route_mt_message_raw_data).data.cast();
             let len = (*value_transfer_route_mt_message_raw_data).len as usize;
             std::slice::from_raw_parts(ptr, len)
-        }
-        .to_vec();
+        };
+        let message_format = WmsMessageFormat::from_glib(value_transfer_route_mt_message_format);
 
-        let sender = &*(user_data.cast::<UnboundedSender<(Vec<u8>, WmsMessageFormat)>>());
-
-        if sender
-            .unbounded_send((
-                data,
-                WmsMessageFormat::from_glib(value_transfer_route_mt_message_format),
-            ))
-            .is_err()
-        {
-            tracing::warn!("WMS event receiver has been dropped");
-        }
+        let cb = &mut *(user_data.cast::<EventReportCallback>());
+        cb(data, message_format);
     }
 }
 
 // Lauched when no more instances of GObject references QmiClientWms exists
 unsafe extern "C" fn destroy_event_report_data(data: *mut c_void, _closure: *mut GClosure) {
     tracing::debug!("destroy_event_report_data");
-    drop(Box::from_raw(
-        data.cast::<UnboundedSender<(Vec<u8>, WmsMessageFormat)>>(),
-    ));
+    drop(Box::from_raw(data.cast::<EventReportCallback>()));
 }
 
 unsafe extern "C" fn set_event_report_cb(

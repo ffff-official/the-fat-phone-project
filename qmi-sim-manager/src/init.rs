@@ -1,4 +1,4 @@
-use crate::{SmError, SmEvent, SmResult, engine, messaging, network, voice};
+use crate::{SmError, SmEvent, SmResult, engine, messaging, network};
 
 use libqmi_glib_rs::{Device, UimClient, VoiceClient, WdsClient, WmsClient};
 
@@ -46,7 +46,7 @@ pub(crate) fn init_thread(
             let mut wms_client = WmsClient::new(&device).await?;
             let wds_client = WdsClient::new(&device).await?;
             let uim_client = UimClient::new(&device).await?;
-            let voice_client = VoiceClient::new(&device).await?;
+            let mut voice_client = VoiceClient::new(&device).await?;
 
             let result = async {
                 network::prepare_network_interface(&device).await?;
@@ -56,10 +56,16 @@ pub(crate) fn init_thread(
                     sm_event_sender.clone(),
                 )
                 .await?;
-                let voice_client_clone = voice_client.clone();
-                let th_voice = ctx_clone.spawn_local(async move {
-                    voice::process_voice_events(voice_client_clone, sm_event_sender.clone()).await
-                });
+                let mut sm_event_sender_clone = sm_event_sender.clone();
+                voice_client
+                    .set_all_call_status(Box::new(move |call_info_vec| {
+                        if let Err(e) =
+                            sm_event_sender_clone.start_send(SmEvent::VoiceCallEvent(call_info_vec))
+                        {
+                            tracing::warn!("set_all_call_status sender : cannot send : {:?}", e);
+                        }
+                    }))
+                    .await?;
 
                 let wds_client_clone = wds_client.clone();
                 let wms_client_clone = wms_client.clone();
@@ -94,7 +100,7 @@ pub(crate) fn init_thread(
                     Ok(Err(e)) => tracing::error!("glib_control_loop failure : {}", e),
                     Ok(Ok(v)) => tracing::debug!("glib_control_loop has returning {:?}", v),
                 }
-                Ok::<(_, _), SmError>((th_msg, th_voice))
+                Ok::<_, SmError>(th_msg)
             }
             .await;
 
@@ -115,12 +121,9 @@ pub(crate) fn init_thread(
             }
 
             match result {
-                Ok((th_msg, th_voice)) => {
+                Ok(th_msg) => {
                     if let Err(e) = th_msg.join() {
                         tracing::error!("MESSAGING Thread has panicked ! {:?}", e);
-                    }
-                    if let Err(e) = th_voice.await {
-                        tracing::error!("VOICE Thread has panicked ! {:?}", e);
                     }
                 }
                 Err(e) => {
