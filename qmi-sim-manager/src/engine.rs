@@ -1,4 +1,4 @@
-use crate::{ServiceFuture, ServiceResult, SmError, SmResult, messaging, network};
+use crate::{Error, ServiceFuture, ServiceResult, SmResult, messaging, network};
 use messaging::{MmsContent, MmsStatus};
 
 use libqmi_glib_rs::{UimClient, VoiceClient, WdsClient, WmsClient};
@@ -161,11 +161,7 @@ pub(crate) async fn glib_control_loop(
                             let mut output = Vec::with_capacity(pdu_vec.len());
                             for pdu in pdu_vec {
                                 output.push(
-                                    wms_client
-                                        .send_sms(pdu)
-                                        .await
-                                        .flatten()
-                                        .map_err(SmError::Qmi),
+                                    wms_client.send_sms(pdu).await.flatten().map_err(Error::Qmi),
                                 );
                             }
                             req_send(req.reply_sender, Ok(output));
@@ -178,7 +174,7 @@ pub(crate) async fn glib_control_loop(
                         .spawn(messaging::get_mms(req.content_location))
                         .await
                         .map_err(|arg0: tokio::task::JoinError| {
-                            SmError::TokioRuntimeError(arg0.into())
+                            Error::TokioRuntimeError(arg0.into())
                         })?;
 
                     req_send(req.reply_sender, ret);
@@ -188,7 +184,7 @@ pub(crate) async fn glib_control_loop(
                         .spawn(messaging::send_mms(req.mmsc, req.content, req.from, req.to))
                         .await
                         .map_err(|arg0: tokio::task::JoinError| {
-                            SmError::TokioRuntimeError(arg0.into())
+                            Error::TokioRuntimeError(arg0.into())
                         })?;
 
                     req_send(req.reply_sender, ret);
@@ -217,7 +213,7 @@ pub(crate) async fn glib_control_loop(
             Err(TryRecvError::Empty) => {
                 glib::timeout_future(GLIB_CONTROL_LOOP_PERIOD_MS).await;
             }
-            Err(e) => Err(e).map_err(|e| SmError::Other(Box::new(e)))?,
+            Err(e) => Err(e).map_err(|e| Error::Other(Box::new(e)))?,
         }
     }
     Ok("GLIB_CONTROL_LOOP_TIMER_COND set to FALSE".into())

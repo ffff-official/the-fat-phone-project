@@ -13,7 +13,7 @@
 //!     ├─ UDH (optional, if TP-UDHI=1)
 //!     └─ User payload
 //! ```
-use crate::SmError;
+use crate::Error;
 
 use super::*;
 
@@ -250,7 +250,7 @@ pub(crate) fn get_sms_deliver_tpdu(
 }
 
 fn gsm<T>(res: Result<T, std::io::Error>) -> SmResult<T> {
-    res.map_err(SmError::Gsm7Error)
+    res.map_err(Error::Gsm7Error)
 }
 
 #[cfg(test)]

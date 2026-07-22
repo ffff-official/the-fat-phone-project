@@ -4,7 +4,7 @@
 // RUSTFLAGS="-Zsanitizer=address -Cforce-frame-pointers=yes" cargo test -Zbuild-std --target x86_64-unknown-linux-gnu
 use dotenvy::dotenv;
 use futures::stream::StreamExt;
-use qmi_sim_manager::SmClientHandle;
+use qmi_sim_manager::ClientHandle;
 use qmi_sim_manager::mms::{MmsContent, MmsContentType};
 
 use std::env;
@@ -17,7 +17,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenv().ok().unwrap();
     let dest = env::var("DEST").unwrap();
 
-    let mut client_handle = SmClientHandle::init(PathBuf::from("/dev/cdc-wdm1"))?;
+    let mut client_handle = ClientHandle::init(PathBuf::from("/dev/cdc-wdm1"))?;
 
     let client = client_handle.client();
 

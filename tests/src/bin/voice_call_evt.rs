@@ -1,6 +1,6 @@
 use dotenvy::dotenv;
 use futures::stream::StreamExt;
-use qmi_sim_manager::SmClientHandle;
+use qmi_sim_manager::ClientHandle;
 
 use std::env;
 use std::path::PathBuf;
@@ -12,7 +12,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenv().ok().unwrap();
     let _dest = env::var("DEST").unwrap();
 
-    let mut client_handle = SmClientHandle::init(PathBuf::from("/dev/cdc-wdm1"))?;
+    let mut client_handle = ClientHandle::init(PathBuf::from("/dev/cdc-wdm1"))?;
 
     let client = client_handle.client();
 

@@ -16,7 +16,7 @@
 use bitfields::{bitfield, bitflag};
 use gsm7_rs::Gsm7Reader;
 
-use crate::{SmError, SmResult, messaging::SliceResultExt};
+use crate::{Error, SmResult, messaging::SliceResultExt};
 
 use std::io;
 
@@ -42,7 +42,7 @@ impl TpAddress {
         let mut encoded_address = vec![0u8; (length / 2) + (length % 2)];
         for (idx_str, c) in self.address.chars().enumerate() {
             if !(c as u8 >= b'0' && c as u8 <= b'9') {
-                Err(SmError::InvalidDestination(
+                Err(Error::InvalidDestination(
                     "contains non numerical character".to_string(),
                 ))?
             }
@@ -87,7 +87,7 @@ impl TpAddress {
                 let reader = Gsm7Reader::new(io::Cursor::new(s.get_result(2..2 + encoded_len)?));
                 reader
                     .collect::<io::Result<String>>()
-                    .map_err(SmError::Gsm7Error)?
+                    .map_err(Error::Gsm7Error)?
             }
             _ => Err("Unhandled Type of Address")?,
         };

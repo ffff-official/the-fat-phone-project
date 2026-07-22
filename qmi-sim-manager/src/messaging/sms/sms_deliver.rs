@@ -11,7 +11,7 @@
 //!     ├─ UDH (optional, if TP-UDHI=1)
 //!     └─ User payload
 //! ```
-use crate::SmError;
+use crate::Error;
 
 use super::*;
 use udh::ConcatenatedShortMessages;
@@ -175,12 +175,12 @@ pub(crate) fn parse_sms_deliver_tpdu(tpdu: &[u8]) -> SmResult<SmsDeliverTpdu> {
                 io::Cursor::new(tpdu.get_result(idx..)?),
                 offset as _,
             )
-            .map_err(SmError::Gsm7Error)?;
+            .map_err(Error::Gsm7Error)?;
             let message = reader
                 .into_iter()
                 .take(text_septets)
                 .collect::<io::Result<String>>()
-                .map_err(SmError::Gsm7Error)?;
+                .map_err(Error::Gsm7Error)?;
             Message::Sms(message)
         }
         TpDcs::DataCoding(DataCoding {

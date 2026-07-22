@@ -5,7 +5,7 @@
 //! ```
 use num_enum::TryFromPrimitive;
 
-use crate::SmError;
+use crate::Error;
 
 #[derive(Debug)]
 pub(crate) enum TpDcs {
@@ -34,7 +34,7 @@ pub(crate) struct MessageWaitingIndication {
 }
 
 impl TryFrom<u8> for TpDcs {
-    type Error = SmError;
+    type Error = Error;
 
     fn try_from(v: u8) -> Result<Self, Self::Error> {
         Ok(match v {

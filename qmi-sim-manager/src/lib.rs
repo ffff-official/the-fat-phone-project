@@ -21,7 +21,7 @@
 //!
 //! ```no_run
 //! use futures::stream::StreamExt;
-//! use qmi_sim_manager::SmClientHandle;
+//! use qmi_sim_manager::ClientHandle;
 //! use qmi_sim_manager::mms::{MmsContent, MmsContentType};
 //!
 //! use std::path::PathBuf;
@@ -29,7 +29,7 @@
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {
-//!     let mut client_handle = SmClientHandle::init(PathBuf::from("/dev/cdc-wdm1"))?;
+//!     let mut client_handle = ClientHandle::init(PathBuf::from("/dev/cdc-wdm1"))?;
 //!
 //!     let client = client_handle.client();
 //!
@@ -139,11 +139,11 @@ use std::sync::mpsc::sync_channel;
 /// The main handle for interacting with the client.
 ///
 /// This type owns the background thread and the event stream.
-/// Use [`SmClientHandle::client`] to obtain a cloneable [`SmClient`]
+/// Use [`ClientHandle::client`] to obtain a cloneable [`Client`]
 /// that can be shared across tasks.
-pub struct SmClientHandle {
-    client: SmClient,
-    events: Option<mpsc::UnboundedReceiver<SmEvent>>,
+pub struct ClientHandle {
+    client: Client,
+    events: Option<mpsc::UnboundedReceiver<Event>>,
     thread: Option<std::thread::JoinHandle<SmResult<()>>>,
 }
 
@@ -151,13 +151,13 @@ pub struct SmClientHandle {
 ///
 /// This type is cheap to clone and can safely be shared between threads.
 #[derive(Clone)]
-pub struct SmClient {
+pub struct Client {
     inner: Arc<SmClientInner>,
 }
 
 /// EventStream provides methods for retrieving events asynchronously or non-blockingly through next_event and try_next_event.
 /// It also implements the futures::Stream trait.
-pub struct EventStream(mpsc::UnboundedReceiver<SmEvent>);
+pub struct EventStream(mpsc::UnboundedReceiver<Event>);
 
 struct SmClientInner {
     engine_sender: mpsc::UnboundedSender<engine::Request>,
@@ -165,7 +165,7 @@ struct SmClientInner {
 
 /// Events emitted by the modem.
 #[derive(Debug)]
-pub enum SmEvent {
+pub enum Event {
     /// An SMS has been received.
     Sms(sms::Sms),
     /// A WAP Push SMS has been received.
@@ -176,7 +176,7 @@ pub enum SmEvent {
     VoiceCallEvent(Vec<voice::VoiceCall>),
 }
 
-impl SmClientHandle {
+impl ClientHandle {
     /// Creates a new client connected to the specified QMI device.
     pub fn init(qmi_device_path: impl AsRef<Path>) -> SmResult<Self> {
         let (status_sender, status_receiver) =
@@ -190,9 +190,9 @@ impl SmClientHandle {
 
         let engine_sender = status_receiver
             .recv()
-            .map_err(|e| SmError::Other(Box::new(e)))??;
+            .map_err(|e| Error::Other(Box::new(e)))??;
 
-        let client = SmClient {
+        let client = Client {
             inner: Arc::new(SmClientInner { engine_sender }),
         };
 
@@ -205,8 +205,8 @@ impl SmClientHandle {
 
     /// Returns a cloneable client handle.
     ///
-    /// The returned [`SmClient`] can safely be shared between threads.
-    pub fn client(&self) -> SmClient {
+    /// The returned [`Client`] can safely be shared between threads.
+    pub fn client(&self) -> Client {
         self.client.clone()
     }
 
@@ -217,7 +217,7 @@ impl SmClientHandle {
     pub fn event_stream(&mut self) -> SmResult<EventStream> {
         match self.events.take() {
             Some(events) => Ok(EventStream(events)),
-            None => Err(SmError::EventsIteratorAlreadyTaken),
+            None => Err(Error::EventsIteratorAlreadyTaken),
         }
     }
 
@@ -238,7 +238,7 @@ impl SmClientHandle {
         reply_receiver.await?;
 
         if let Some(thread) = self.thread.take() {
-            thread.join().map_err(|_| SmError::ThreadPanicked)??;
+            thread.join().map_err(|_| Error::ThreadPanicked)??;
         }
 
         Ok(())
@@ -247,7 +247,7 @@ impl SmClientHandle {
 
 /// Errors returned by this library.
 #[derive(Debug, thiserror::Error)]
-pub enum SmError {
+pub enum Error {
     /// This error originates from libQmi.
     #[error(transparent)]
     Qmi(#[from] error::QmiError),
@@ -307,31 +307,31 @@ pub enum SmError {
     Other(#[from] Box<dyn std::error::Error + Send + Sync>),
 }
 
-impl From<String> for SmError {
+impl From<String> for Error {
     fn from(value: String) -> Self {
         Self::UnexpectedPattern(value)
     }
 }
 
-impl From<&'static str> for SmError {
+impl From<&'static str> for Error {
     fn from(value: &'static str) -> Self {
         Self::UnexpectedPattern(value.into())
     }
 }
 
-impl From<futures::channel::mpsc::TrySendError<Request>> for SmError {
+impl From<futures::channel::mpsc::TrySendError<Request>> for Error {
     fn from(_: futures::channel::mpsc::TrySendError<Request>) -> Self {
-        SmError::EngineStopped
+        Error::EngineStopped
     }
 }
 
-impl From<futures::channel::oneshot::Canceled> for SmError {
+impl From<futures::channel::oneshot::Canceled> for Error {
     fn from(_value: futures::channel::oneshot::Canceled) -> Self {
-        SmError::EngineStopped
+        Error::EngineStopped
     }
 }
 
-impl<T> From<num_enum::TryFromPrimitiveError<T>> for SmError
+impl<T> From<num_enum::TryFromPrimitiveError<T>> for Error
 where
     T: num_enum::TryFromPrimitive,
     T::Primitive: std::fmt::Debug,
@@ -345,10 +345,10 @@ where
 }
 
 /// Result type for this library.
-pub type SmResult<T> = Result<T, SmError>;
+pub type SmResult<T> = Result<T, Error>;
 
 impl Stream for EventStream {
-    type Item = SmEvent;
+    type Item = Event;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = self.get_mut();
@@ -360,7 +360,7 @@ impl EventStream {
     /// Waits for the next modem event.
     ///
     /// Returns `None` if the event stream has been closed.
-    pub async fn next_event(&mut self) -> Option<SmEvent> {
+    pub async fn next_event(&mut self) -> Option<Event> {
         use futures::StreamExt;
         self.next().await
     }
@@ -368,16 +368,16 @@ impl EventStream {
     /// Attempts to retrieve the next pending event without blocking.
     ///
     /// Returns `Ok(None)` if no event is currently available.
-    pub fn try_next_event(&mut self) -> SmResult<Option<SmEvent>> {
+    pub fn try_next_event(&mut self) -> SmResult<Option<Event>> {
         match self.0.try_recv() {
             Ok(event) => Ok(Some(event)),
             Err(mpsc::TryRecvError::Empty) => Ok(None),
-            Err(mpsc::TryRecvError::Closed) => Err(SmError::EngineStopped),
+            Err(mpsc::TryRecvError::Closed) => Err(Error::EngineStopped),
         }
     }
 }
 
-impl SmClient {
+impl Client {
     /// Starts the mobile data connection.
     ///
     /// You must specify the APN name.
@@ -489,12 +489,12 @@ impl SmClient {
     /// This is a low-level API. The supplied closure is executed by the service
     /// engine and may return any `Send + 'static` value.
     /// ```no_run
-    /// use qmi_sim_manager::{SmClientHandle, libqmi::types::WdsConnectionStatus};
+    /// use qmi_sim_manager::{ClientHandle, libqmi::types::WdsConnectionStatus};
     /// use std::path::PathBuf;
     ///
     /// # #[tokio::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let client_handle = SmClientHandle::init(PathBuf::from("/dev/cdc-wdm1"))?;
+    /// let client_handle = ClientHandle::init(PathBuf::from("/dev/cdc-wdm1"))?;
     /// let client = client_handle.client();
     ///
     /// client.start_network("free").await?; // Activate a mobile data connection.
@@ -590,12 +590,12 @@ impl SmClient {
     /// engine and may return any `Send + 'static` value.
     ///
     /// ```no_run
-    /// use qmi_sim_manager::SmClientHandle;
+    /// use qmi_sim_manager::ClientHandle;
     /// use std::path::PathBuf;
     ///
     /// # #[tokio::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let client_handle = SmClientHandle::init(PathBuf::from("/dev/cdc-wdm1"))?;
+    /// let client_handle = ClientHandle::init(PathBuf::from("/dev/cdc-wdm1"))?;
     /// let client = client_handle.client();
     ///
     /// // Retrieve the status of the available UIM cards and their applications.
@@ -661,12 +661,12 @@ impl SmClient {
     /// engine and may return any `Send + 'static` value.
     ///
     /// ```no_run
-    /// use qmi_sim_manager::{SmClientHandle, SmEvent};
+    /// use qmi_sim_manager::{ClientHandle, Event};
     /// use std::{path::PathBuf, time::Duration};
     ///
     /// # #[tokio::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let client_handle = SmClientHandle::init(PathBuf::from("/dev/cdc-wdm1"))?;
+    /// let client_handle = ClientHandle::init(PathBuf::from("/dev/cdc-wdm1"))?;
     /// let client = client_handle.client();
     /// let mut events = client.event_stream();
     ///
@@ -686,7 +686,7 @@ impl SmClient {
     ///
     /// // Wait until the modem reports that the call has started.
     /// while let Some(event) = events.next_event().await {
-    ///     if let SmEvent::VoiceCallEvent(call_event) = event {
+    ///     if let Event::VoiceCallEvent(call_event) = event {
     ///         if call_event.is_call_begin(call_id) {
     ///             tokio::time::sleep(Duration::from_secs(10)).await;
     ///             break;
@@ -743,7 +743,7 @@ where
     response
         .downcast::<T>()
         .map(|value| *value)
-        .map_err(|_| SmError::DowncastingFailed)
+        .map_err(|_| Error::DowncastingFailed)
 }
 
 #[cfg(test)]

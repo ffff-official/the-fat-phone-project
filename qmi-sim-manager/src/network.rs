@@ -1,4 +1,4 @@
-use crate::{SmError, SmResult};
+use crate::{Error, SmResult};
 
 use libqmi_glib_rs::{Device, WdsClient};
 use libqmi_glib_types_rs::{DeviceExpectedDataFormat, WdsConnectionStatus};
@@ -95,7 +95,7 @@ pub(crate) async fn start_network(
         ret?
     }
     .await
-    .map_err(SmError::NetworkConfError)?;
+    .map_err(Error::NetworkConfError)?;
     Ok(new_status)
 }
 

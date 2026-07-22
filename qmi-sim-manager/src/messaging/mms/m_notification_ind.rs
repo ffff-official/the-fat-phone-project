@@ -81,7 +81,7 @@
 //! Expiry: 7 days
 //! Content-Location: http://213.228.3.45/mms.php?nVnGSXcCEfGe4gAmufq69B
 //! ```
-use crate::SmError;
+use crate::Error;
 
 use super::{SliceResultExt, XMmsFields, set_xmms_fields};
 
@@ -98,7 +98,7 @@ pub(crate) struct WapPush {
 }
 
 impl TryFrom<&[u8]> for WapPush {
-    type Error = SmError;
+    type Error = Error;
 
     fn try_from(source: &[u8]) -> Result<Self, Self::Error> {
         let transaction_id = *source.get_result(0)?;

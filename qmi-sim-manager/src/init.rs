@@ -1,4 +1,4 @@
-use crate::{SmError, SmEvent, SmResult, engine, messaging, network};
+use crate::{Error, Event, SmResult, engine, messaging, network};
 
 use libqmi_glib_rs::{Device, UimClient, VoiceClient, WdsClient, WmsClient};
 
@@ -19,7 +19,7 @@ use std::sync::mpsc::SyncSender;
 pub(crate) fn init_thread(
     qmi_device_path: PathBuf,
     status_sender: SyncSender<SmResult<mpsc::UnboundedSender<engine::Request>>>,
-    sm_event_sender: mpsc::UnboundedSender<SmEvent>,
+    sm_event_sender: mpsc::UnboundedSender<Event>,
 ) -> SmResult<()> {
     let file: *mut gio_sys::GFile = unsafe {
         g_file_new_for_path(
@@ -37,8 +37,7 @@ pub(crate) fn init_thread(
 
     ctx.spawn_local(async move {
         if let Err(e) = async {
-            let tokio_runtime =
-                tokio::runtime::Runtime::new().map_err(SmError::TokioRuntimeError)?; // Tokio runtime
+            let tokio_runtime = tokio::runtime::Runtime::new().map_err(Error::TokioRuntimeError)?; // Tokio runtime
             let tokio_handle = tokio_runtime.handle().clone();
 
             let mut device = Device::new(file).await?;
@@ -60,7 +59,7 @@ pub(crate) fn init_thread(
                 voice_client
                     .set_all_call_status(Box::new(move |call_info_vec| {
                         if let Err(e) =
-                            sm_event_sender_clone.start_send(SmEvent::VoiceCallEvent(call_info_vec))
+                            sm_event_sender_clone.start_send(Event::VoiceCallEvent(call_info_vec))
                         {
                             tracing::warn!("set_all_call_status sender : cannot send : {:?}", e);
                         }
@@ -100,7 +99,7 @@ pub(crate) fn init_thread(
                     Ok(Err(e)) => tracing::error!("glib_control_loop failure : {}", e),
                     Ok(Ok(v)) => tracing::debug!("glib_control_loop has returning {:?}", v),
                 }
-                Ok::<_, SmError>(th_msg)
+                Ok::<_, Error>(th_msg)
             }
             .await;
 
@@ -131,7 +130,7 @@ pub(crate) fn init_thread(
                     drop(status_sender.send(Err(e)));
                 }
             }
-            Ok::<(), SmError>(())
+            Ok::<(), Error>(())
         }
         .await
         {

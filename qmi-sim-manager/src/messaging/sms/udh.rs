@@ -50,7 +50,7 @@
 //! When TP-UD contains seven-bit data, the length of TP-UD is given in septets (but UDHL is still in octets, so length in septets is (UDHL + 1) * 8 / 7)
 //! and the UDH is filled to a septet boundary with 0-6 zero bits.
 //! ```
-use crate::SmError;
+use crate::Error;
 
 use super::SliceResultExt;
 
@@ -65,7 +65,7 @@ pub(crate) struct Udh {
 }
 
 impl TryFrom<&[u8]> for Udh {
-    type Error = SmError;
+    type Error = Error;
 
     fn try_from(source: &[u8]) -> Result<Self, Self::Error> {
         let content = UdhContent::try_from(source)?; // First parse and check UDH
@@ -111,7 +111,7 @@ enum Iei {
 }
 
 impl TryFrom<&[u8]> for UdhContent {
-    type Error = SmError;
+    type Error = Error;
 
     fn try_from(source: &[u8]) -> Result<Self, Self::Error> {
         let udh_length = *source.get_result(0)?;

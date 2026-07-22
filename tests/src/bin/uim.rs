@@ -1,4 +1,4 @@
-use qmi_sim_manager::SmClientHandle;
+use qmi_sim_manager::ClientHandle;
 use std::path::PathBuf;
 
 use dotenvy::dotenv;
@@ -10,7 +10,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenv().ok().unwrap();
     let _dest = env::var("DEST").unwrap();
 
-    let client_handle = SmClientHandle::init(PathBuf::from("/dev/cdc-wdm1"))?;
+    let client_handle = ClientHandle::init(PathBuf::from("/dev/cdc-wdm1"))?;
     let client = client_handle.client();
 
     let result = client

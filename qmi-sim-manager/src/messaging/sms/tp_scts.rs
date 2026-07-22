@@ -2,7 +2,7 @@ use std::fmt;
 
 use chrono::{DateTime, NaiveDate, TimeZone, Utc};
 
-use crate::SmError;
+use crate::Error;
 
 pub(crate) const TIMESTAMP_LEN: usize = 7;
 
@@ -10,7 +10,7 @@ pub(crate) const TIMESTAMP_LEN: usize = 7;
 pub(crate) struct TpScts(pub u64);
 
 impl TryFrom<&[u8]> for TpScts {
-    type Error = SmError;
+    type Error = Error;
 
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
         if value.len() != TIMESTAMP_LEN {

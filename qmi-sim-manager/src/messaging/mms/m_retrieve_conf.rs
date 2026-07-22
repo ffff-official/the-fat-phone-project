@@ -30,7 +30,7 @@
 //! └─ body
 //!     └─ [binary data slice]
 //! ```
-use crate::{SmError, SmResult};
+use crate::{Error, SmResult};
 
 use super::*;
 
@@ -38,7 +38,7 @@ use std::cmp::Ordering;
 use std::fmt;
 
 impl<'a> TryFrom<&'a [u8]> for WspMRetrieveConf<'a> {
-    type Error = SmError;
+    type Error = Error;
     fn try_from(source: &'a [u8]) -> Result<Self, Self::Error> {
         let (xmms_fields, source) = super::set_xmms_fields(source)?;
         let mut idx: usize = 0;

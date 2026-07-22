@@ -1,7 +1,7 @@
 use dotenvy::dotenv;
 use futures::stream::StreamExt;
 use qmi_sim_manager::mms::MmsContentType;
-use qmi_sim_manager::{SmClientHandle, SmError, SmEvent};
+use qmi_sim_manager::{ClientHandle, Error, Event};
 
 use std::env;
 use std::path::PathBuf;
@@ -13,7 +13,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenv().ok().unwrap();
     let _dest = env::var("DEST").unwrap();
 
-    let mut client_handle = SmClientHandle::init(PathBuf::from("/dev/cdc-wdm1"))?;
+    let mut client_handle = ClientHandle::init(PathBuf::from("/dev/cdc-wdm1"))?;
 
     let client = client_handle.client();
 
@@ -21,7 +21,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let handle = tokio::spawn(async move {
         let mut count = 0;
         while let Some(event) = events.next().await {
-            if let SmEvent::SmsWapPush(wap_push) = &event {
+            if let Event::SmsWapPush(wap_push) = &event {
                 client.start_network("free").await?;
                 let output = client.get_mms(wap_push.content_location.clone()).await?;
                 for content in output {
@@ -40,13 +40,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     count += 1;
                     tokio::fs::write(path, content.content)
                         .await
-                        .map_err(SmError::TokioRuntimeError)?;
+                        .map_err(Error::TokioRuntimeError)?;
                 }
                 client.stop_network().await?;
             }
             println!("{event:?}");
         }
-        Ok::<(), SmError>(())
+        Ok::<(), Error>(())
     });
     tokio::time::sleep(Duration::from_secs(60)).await; // Keep the client running for one minute before shutting it down.
     client_handle.shutdown().await?;

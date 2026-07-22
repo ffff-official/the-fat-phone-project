@@ -4,7 +4,7 @@ pub(crate) mod sms;
 use crate::messaging::mms::m_retrieve_conf::WspContentType;
 use crate::messaging::sms::SmsType;
 use crate::network::WWAN_INTERFACE;
-use crate::{SmEvent, SmResult};
+use crate::{Event, SmResult};
 pub(crate) use sms::get_sms_deliver_tpdu;
 
 use libqmi_glib_rs::WmsClient;
@@ -64,7 +64,7 @@ impl std::error::Error for MessageOutOfBound {}
 pub(crate) async fn start_messaging(
     wms_client: &mut WmsClient,
     tokio_handle: Handle,
-    sm_event_sender: mpsc::UnboundedSender<SmEvent>,
+    sm_event_sender: mpsc::UnboundedSender<Event>,
 ) -> SmResult<JoinHandle<()>> {
     tracing::debug!("prepare_messaging :");
     let (mut tpdu_sender, tpdu_receiver) = futures::channel::mpsc::unbounded();
@@ -97,7 +97,7 @@ pub(crate) async fn start_messaging(
 /// the result through an MPSC channel to the library client.
 async fn process_messsages(
     mut tpdu_reveiver: UnboundedReceiver<(Vec<u8>, WmsMessageFormat)>,
-    mut sm_event_sender: mpsc::UnboundedSender<SmEvent>,
+    mut sm_event_sender: mpsc::UnboundedSender<Event>,
 ) -> SmResult<u32> {
     loop {
         match tpdu_reveiver.try_recv() {
@@ -113,9 +113,9 @@ async fn process_messsages(
                                 Ok(sms_type) => {
                                     let _r = sm_event_sender
                                         .send(match sms_type {
-                                            SmsType::Sms(sms) => SmEvent::Sms(sms),
+                                            SmsType::Sms(sms) => Event::Sms(sms),
                                             SmsType::SmsWapPush(sms_wap_push) => {
-                                                SmEvent::SmsWapPush(sms_wap_push)
+                                                Event::SmsWapPush(sms_wap_push)
                                             }
                                         })
                                         .await
@@ -127,7 +127,7 @@ async fn process_messsages(
                             },
                             SmsStatusReportTpdu(tpdu) => {
                                 let _r = sm_event_sender
-                                    .send(SmEvent::SmsStatusReport(SmsStatusReport::from(tpdu)))
+                                    .send(Event::SmsStatusReport(SmsStatusReport::from(tpdu)))
                                     .await
                                     .inspect_err(|e| tracing::error!("cannot send : {e}"));
                             }
