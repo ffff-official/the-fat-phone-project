@@ -2,9 +2,13 @@
 [![Docs.rs](https://docs.rs/qmi-sim-manager/badge.svg)](https://docs.rs/qmi-sim-manager)
 [![License](https://img.shields.io/crates/l/qmi-sim-manager.svg)](https://crates.io/crates/qmi-sim-manager)
 ![Requires libqmi](https://img.shields.io/badge/libqmi-%E2%89%A51.32-ffc0cb)
-# qmi-sim-manager
+<h1 align="center">
+  qmi-sim-manager
+</h1>
 
-A Rust library for interacting with QMI-compatible cellular modems.
+<p align="center">
+  A Rust library for interacting with QMI-compatible cellular modems.
+</p>
 
 The library provides an asynchronous API for:
 
