@@ -1,8 +1,8 @@
 use dotenvy::dotenv;
 use futures::stream::StreamExt;
-use qmi_sim_manager::ClientHandle;
 use qmi_sim_manager::Event::VoiceCallEvent;
 use qmi_sim_manager::libqmi::types::VoiceCallState;
+use qmi_sim_manager::{Client, ClientHandle};
 
 use std::path::PathBuf;
 use std::time::Duration;
@@ -18,7 +18,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut events = client_handle.event_stream()?;
     let h = tokio::spawn(async move {
-        // Process incoming events, such as received CALL messages.
+        // Process voice call events reported by the modem.
         while let Some(event) = events.next().await {
             if let VoiceCallEvent(items) = event {
                 for item in items {
@@ -26,23 +26,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     println!("{:#?}", item);
                     if item.state == VoiceCallState::Incoming {
                         dbg!("incoming call received");
-                        tokio::spawn(async move {
-                            let id = item.id;
-                            client_clone
-                                .with_voice(async move |client, _tk| client.answer_call(id).await)
-                                .await??;
-                            tokio::time::sleep(Duration::from_secs(10)).await;
-                            client_clone
-                                .with_voice(async move |client, _tk| client.end_call(id).await)
-                                .await??;
-                            Ok::<_, qmi_sim_manager::Error>(())
-                        });
+                        if let Err(e) = tokio::spawn(answer(client_clone, item.id)).await {
+                            eprintln!("Exiting with error : {e:?}");
+                        }
                     }
                 }
             }
         }
     });
-    tokio::time::sleep(Duration::from_secs(60)).await; // Keep the client running for one minute before shutting it down.
+    async fn answer(client: Client, id: u8) -> Result<(), qmi_sim_manager::Error> {
+        client
+            .with_voice(async move |client, _tk| client.answer_call(id).await)
+            .await??;
+        // Keep the call active for ten seconds.
+        tokio::time::sleep(Duration::from_secs(10)).await;
+        client
+            .with_voice(async move |client, _tk| client.end_call(id).await)
+            .await??;
+        Ok(())
+    }
+    // Keep the client running for one minute before shutting it down.
+    tokio::time::sleep(Duration::from_secs(60)).await;
     client_handle.shutdown().await?;
     h.await?;
     Ok(())

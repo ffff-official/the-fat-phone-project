@@ -43,7 +43,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     client.send_sms(&dest, "Hello belgium !", true).await?;
 
-    client.start_network("free").await?; // A mobile data connection is required to send an MMS through the MMSC.
+    // A mobile data connection is required to send an MMS through the MMSC.
+    client.start_network("free").await?;
     let response = client
         .send_mms(
             "http://mms.free.fr",

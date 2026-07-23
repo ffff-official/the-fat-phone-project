@@ -17,39 +17,24 @@
 //!
 //! At the moment, MMS sending is limited to image attachments and SIM features are limited.
 //!
-//! # Example
+//! # Basics
 //!
 //! ```no_run
 //! use futures::stream::StreamExt;
 //! use qmi_sim_manager::ClientHandle;
-//! use qmi_sim_manager::mms::{MmsContent, MmsContentType};
 //!
 //! use std::path::PathBuf;
-//! use std::time::Duration;
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {
 //!     let mut client_handle = ClientHandle::init(PathBuf::from("/dev/cdc-wdm1"))?;
 //!
-//!     let client = client_handle.client();
+//!     // Client is used to call all library methods.
+//!     // It is cloneable and can be safely shared across multiple threads.
+//!     let _client = client_handle.client();
 //!
-//!     client.send_sms("33612402244", "banane", true).await?;
-//!
-//!     client.start_network("free").await?; // A mobile data connection is required to send an MMS through the MMSC.
-//!     let response = client
-//!         .send_mms(
-//!             "http://mms.free.fr",
-//!             vec![MmsContent {
-//!                 content: tokio::fs::read("bibendum.jpg").await?,
-//!                 content_type: Some(MmsContentType::ImageJpeg),
-//!             }],
-//!             None,
-//!             &["33612402244"],
-//!         )
-//!         .await?;
-//!     println!("{:?}", response);
-//!     client.stop_network().await?;
-//!
+//!     // EventStream is used to receive all events.
+//!     // It is not cloneable, but it can be sent to another thread.
 //!     let mut events = client_handle.event_stream()?;
 //!     let handler = tokio::spawn(async move {
 //!         // Process incoming events, such as received SMS messages or ringing.
@@ -57,7 +42,6 @@
 //!             println!("{event:?}");
 //!         }
 //!     });
-//!     tokio::time::sleep(Duration::from_secs(60)).await; // Keep the client running for one minute before shutting it down.
 //!     client_handle.shutdown().await?;
 //!     handler.await?;
 //!     Ok(())
@@ -378,9 +362,32 @@ impl EventStream {
 }
 
 impl Client {
-    /// Starts the mobile data connection.
+    /// Starts a mobile data connection using the specified APN.
     ///
-    /// You must specify the APN name.
+    /// # Parameters
+    ///
+    /// - `apn`: The Access Point Name (APN) to use.
+    ///
+    /// # Returns
+    ///
+    /// Returns the packet data connection status reported by the modem.
+    /// ```no_run
+    /// use qmi_sim_manager::ClientHandle;
+    ///
+    /// use std::path::PathBuf;
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let client_handle = ClientHandle::init(PathBuf::from("/dev/cdc-wdm1"))?;
+    ///
+    /// let client = client_handle.client();
+    ///
+    /// client.start_network("free").await?;
+    ///
+    /// client_handle.shutdown().await?;
+    /// #    Ok(())
+    /// # }
+    /// ```
     pub async fn start_network(
         &self,
         apn: impl AsRef<str>,
@@ -398,7 +405,30 @@ impl Client {
         reply_receiver.await?
     }
 
-    /// Stops the mobile data connection.
+    /// Stops the current mobile data connection.
+    ///
+    /// # Returns
+    ///
+    /// Returns the final packet data connection status reported by the modem.
+    /// ```no_run
+    /// use qmi_sim_manager::ClientHandle;
+    ///
+    /// use std::path::PathBuf;
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let client_handle = ClientHandle::init(PathBuf::from("/dev/cdc-wdm1"))?;
+    ///
+    /// let client = client_handle.client();
+    ///
+    /// client.start_network("free").await?;
+    ///
+    /// client.stop_network().await?;
+    ///
+    /// client_handle.shutdown().await?;
+    /// #    Ok(())
+    /// # }
+    /// ```
     pub async fn stop_network(&self) -> SmResult<libqmi::types::WdsConnectionStatus> {
         let (reply_sender, reply_receiver) =
             oneshot::channel::<SmResult<libqmi::types::WdsConnectionStatus>>();
@@ -412,7 +442,35 @@ impl Client {
 
     /// Sends an SMS message.
     ///
-    /// If `recept_ack` is `true`, a delivery report is requested from the network.
+    /// Long messages are automatically split into multiple SMS segments if needed.
+    ///
+    /// # Parameters
+    ///
+    /// - `dest`: The recipient phone number.
+    /// - `content`: The message text.
+    /// - `recept_ack`: Requests a delivery report from the network.
+    ///
+    /// # Returns
+    ///
+    /// Returns one result per SMS segment. Each successful entry contains the
+    /// message reference assigned by the modem.
+    /// ```no_run
+    /// use qmi_sim_manager::ClientHandle;
+    ///
+    /// use std::path::PathBuf;
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let client_handle = ClientHandle::init(PathBuf::from("/dev/cdc-wdm1"))?;
+    ///
+    /// let client = client_handle.client();
+    ///
+    /// client.send_sms("32712786512", "This is bullshit !", true).await?;
+    ///
+    /// client_handle.shutdown().await?;
+    /// #    Ok(())
+    /// # }
+    /// ```
     pub async fn send_sms(
         &self,
         dest: impl AsRef<str>,
@@ -433,7 +491,17 @@ impl Client {
         reply_receiver.await?
     }
 
-    /// Downloads an MMS from its content location.
+    /// Downloads an MMS from the specified content location.
+    ///
+    /// The `content_location` is typically obtained from a previously received [`sms::SmsWapPush`] event.
+    ///
+    /// # Parameters
+    ///
+    /// - `content_location`: The URL of the MMS to download.
+    ///
+    /// # Returns
+    ///
+    /// Returns the decoded MMS content parts.
     pub async fn get_mms(
         &self,
         content_location: impl AsRef<str>,
@@ -450,10 +518,53 @@ impl Client {
         reply_receiver.await?
     }
 
-    /// Sends an MMS.
+    /// Sends an MMS message.
     ///
-    /// `mmsc` is the URL of the mobile provider MMSC used to submit the message.
-    /// `to` contains the recipient phone numbers.
+    /// The message is sent through the MMSC specified by `mmsc`.
+    ///
+    /// # Parameters
+    ///
+    /// - `mmsc`: The URL of the Multimedia Messaging Service Center.
+    /// - `content`: The MMS content parts to send.
+    /// - `from`: An optional sender address.
+    /// - `to`: The list of recipient addresses.
+    ///
+    /// # Returns
+    ///
+    /// Returns the MMS status reported by the MMSC when the message has been
+    /// successfully processed.
+    /// ```no_run
+    /// use qmi_sim_manager::ClientHandle;
+    /// use qmi_sim_manager::mms::{MmsContent, MmsContentType};
+    ///
+    /// use std::path::PathBuf;
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let client_handle = ClientHandle::init(PathBuf::from("/dev/cdc-wdm1"))?;
+    ///
+    /// let client = client_handle.client();
+    ///
+    /// // A mobile data connection is required to send an MMS through the MMSC.
+    /// client.start_network("free").await?;
+    /// let response = client
+    ///     .send_mms(
+    ///         "http://mms.free.fr",
+    ///         vec![MmsContent {
+    ///             content: tokio::fs::read("bibendum.jpg").await?,
+    ///             content_type: Some(MmsContentType::ImageJpeg),
+    ///         }],
+    ///         None,
+    ///         &["33612892311"],
+    ///     )
+    ///     .await?;
+    /// println!("{response:?}");
+    /// client.stop_network().await?;
+    ///
+    /// client_handle.shutdown().await?;
+    /// #    Ok(())
+    /// # }
+    /// ```
     pub async fn send_mms(
         &self,
         mmsc: impl AsRef<str>,
@@ -479,7 +590,7 @@ impl Client {
         reply_receiver.await?
     }
 
-    /// Make a request to the WDS service through libqmi-glib-rs.
+    /// Executes a request on the WDS service using [`libqmi::WdsClient`] from *libqmi-glib-rs*.
     ///
     /// The function body executes on the GLib runtime.
     /// The second parameter is a handle to the Tokio runtime, allowing Tokio tasks to be spawned if needed.
@@ -542,7 +653,7 @@ impl Client {
         downcast_type(response)
     }
 
-    /// Make a request to the WMS service through libqmi-glib-rs.
+    /// Executes a request on the WMS service using [`libqmi::WmsClient`] from *libqmi-glib-rs*.
     ///
     /// The function body executes on the GLib runtime.
     /// The second parameter is a handle to the Tokio runtime, allowing Tokio tasks to be spawned if needed.
@@ -601,7 +712,7 @@ impl Client {
         downcast_type(response)
     }
 
-    /// Makes a request to the UIM service through `libqmi-glib-rs`.
+    /// Executes a request on the UIM service using [`libqmi::UimClient`] from *libqmi-glib-rs*.
     ///
     /// The function body executes on the GLib runtime.
     /// The second parameter is a handle to the Tokio runtime, allowing Tokio tasks
@@ -672,7 +783,7 @@ impl Client {
         downcast_type(response)
     }
 
-    /// Makes a request to the QMI Voice service through `libqmi-glib-rs`.
+    /// Executes a request on the QMI Voice service using [`libqmi::VoiceClient`] from *libqmi-glib-rs*.
     ///
     /// The function body executes on the GLib runtime.
     /// The second parameter is a handle to the Tokio runtime, allowing Tokio tasks
@@ -685,7 +796,7 @@ impl Client {
     ///
     /// ```no_run
     /// use futures::stream::StreamExt;
-    /// use qmi_sim_manager::ClientHandle;
+    /// use qmi_sim_manager::{Client, ClientHandle};
     /// use qmi_sim_manager::Event::VoiceCallEvent;
     /// use qmi_sim_manager::libqmi::types::VoiceCallState;
     ///
@@ -705,24 +816,28 @@ impl Client {
     ///         if let VoiceCallEvent(items) = event {
     ///             for item in items {
     ///                 let client_clone = client.clone();
+    ///                 println!("{:#?}", item);
     ///                 if item.state == VoiceCallState::Incoming {
-    ///                     tokio::spawn(async move {
-    ///                         let id = item.id;
-    ///                         client_clone
-    ///                             .with_voice(async move |client, _tk| client.answer_call(id).await)
-    ///                             .await??;
-    ///                         // Keep the call active for ten seconds.
-    ///                         tokio::time::sleep(Duration::from_secs(10)).await;
-    ///                         client_clone
-    ///                             .with_voice(async move |client, _tk| client.end_call(id).await)
-    ///                             .await??;
-    ///                         Ok::<_, qmi_sim_manager::Error>(())
-    ///                     });
+    ///                     dbg!("incoming call received");
+    ///                     if let Err(e) = tokio::spawn(answer(client_clone, item.id)).await {
+    ///                         eprintln!("Exiting with error : {e:?}");
+    ///                     }
     ///                 }
     ///             }
     ///         }
     ///     }
     /// });
+    /// async fn answer(client: Client, id: u8) -> Result<(), qmi_sim_manager::Error> {
+    ///     client
+    ///         .with_voice(async move |client, _tk| client.answer_call(id).await)
+    ///         .await??;
+    ///     // Keep the call active for ten seconds.
+    ///     tokio::time::sleep(Duration::from_secs(10)).await;
+    ///     client
+    ///         .with_voice(async move |client, _tk| client.end_call(id).await)
+    ///         .await??;
+    ///     Ok(())
+    /// }
     /// // Keep the client running for one minute before shutting it down.
     /// tokio::time::sleep(Duration::from_secs(60)).await;
     /// client_handle.shutdown().await?;
