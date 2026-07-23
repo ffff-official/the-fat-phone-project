@@ -16,7 +16,7 @@ use crate::Error;
 use super::*;
 use udh::ConcatenatedShortMessages;
 
-use gsm7_rs::Gsm7Reader;
+use crate::gsm7::Gsm7Reader;
 
 use std::{fmt, io};
 

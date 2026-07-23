@@ -1,7 +1,7 @@
 use super::*;
 use crate::configure_tracing;
 
-use gsm7_rs::Gsm7Writer;
+use crate::gsm7::Gsm7Writer;
 use hex_literal::hex;
 use serial_test::serial;
 

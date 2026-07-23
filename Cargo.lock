@@ -1257,6 +1257,7 @@ version = "0.1.1"
 dependencies = [
  "bitfields",
  "bitflags",
+ "bitstream-io",
  "chrono",
  "futures",
  "gio-sys",
@@ -1264,7 +1265,6 @@ dependencies = [
  "glib-sys",
  "glib-unix",
  "gobject-sys",
- "gsm7-rs",
  "hex-literal",
  "libqmi-glib-rs",
  "libqmi-glib-types-rs",

@@ -12,7 +12,6 @@ license = "MIT/Apache-2.0"
 [dependencies]
 libqmi-glib-rs.workspace = true
 libqmi-glib-types-rs.workspace = true
-gsm7-rs.workspace = true
 glib.workspace = true
 
 glib-unix.workspace = true
@@ -33,6 +32,7 @@ reqwest = "0.13"
 xmltree = { version = "0.12", features = ["attribute-order"] }
 thiserror = "2.0.18"
 uuid = { version = "1", features = ["v4"] }
+bitstream-io = "4"
 
 [dev-dependencies]
 serial_test = "3.5"
