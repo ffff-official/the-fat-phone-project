@@ -104,7 +104,7 @@ fn get_part<'a>(source: &'a [u8], idx: &mut usize) -> SmResult<WspPart<'a>> {
     let mut content_header_len = *source.get_result(*idx)? as usize;
     *idx += 1;
 
-    if content_header_len == 0x1f {
+    if content_header_len == LENGTH_QUOTE as _ {
         let (new_len, content_header_offset) =
             read_uintvar(source.get_result(*idx..)?).ok_or("cannot get header len")?;
         content_header_len = new_len as _;
@@ -120,7 +120,17 @@ fn get_part<'a>(source: &'a [u8], idx: &mut usize) -> SmResult<WspPart<'a>> {
             content_type_value & 0x7F,
         )?)
     } else {
-        WspContentType::Custom(string_until_nul(source, idx)?)
+        let s = string_until_nul(source, idx)?;
+        let s = s.as_str();
+        match s {
+            WspContentType::AUDIO_MP4 => WspContentType::Custom(WspContentType::AUDIO_MP4),
+            WspContentType::APP_SMIL => WspContentType::Custom(WspContentType::APP_SMIL),
+            WspContentType::VIDEO_MP4 => WspContentType::Custom(WspContentType::VIDEO_MP4),
+            _ => {
+                tracing::debug!("No managed content-type {}", s);
+                WspContentType::Custom(WspContentType::UNKNOWN)
+            }
+        }
     };
     tracing::debug!("Content_type = {}", content_type);
     calcultated_content_header_len += *idx - old_idx; // coherency check
@@ -172,7 +182,7 @@ fn get_part<'a>(source: &'a [u8], idx: &mut usize) -> SmResult<WspPart<'a>> {
     }
 
     // coherency check
-    if calcultated_content_header_len != content_header_len as usize {
+    if calcultated_content_header_len != content_header_len {
         tracing::warn!(
             "calcultated_content_header_len != content_header_len {} != {}",
             calcultated_content_header_len,

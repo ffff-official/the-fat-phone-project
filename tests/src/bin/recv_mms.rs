@@ -34,11 +34,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         WspContentType::WspWellKnownContentType(TextPlain) => {
                             format!("mmstest_text{:02?}.txt", count)
                         }
-                        WspContentType::Custom(custom) => match custom.as_str() {
-                            "audio/mp4" => format!("mmstest_audio{:02?}.m4a", count),
-                            "application/smil" => format!("mmstest_smil{:02?}.sml", count),
-                            _ => format!("mmstest_unknown{:02?}.unk", count),
-                        },
+                        WspContentType::Custom(WspContentType::AUDIO_MP4) => {
+                            format!("mmstest_audio{:02?}.m4a", count)
+                        }
+                        WspContentType::Custom(WspContentType::APP_SMIL) => {
+                            format!("mmstest_smil{:02?}.sml", count)
+                        }
+                        WspContentType::Custom(WspContentType::VIDEO_MP4) => {
+                            format!("mmstest_video{:02?}.mp4", count)
+                        }
                         _ => format!("mmstest_unknown{:02?}.unk", count),
                     };
                     count += 1;

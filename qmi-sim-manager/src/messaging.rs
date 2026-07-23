@@ -257,23 +257,27 @@ pub async fn send_mms(
         .await?;
 
     tracing::debug!("MMS HTTP response status : {}", response.status());
+    match response.error_for_status() {
+        Ok(response) => {
+            let body = response.bytes().await?;
 
-    let body = response.bytes().await?;
+            let mut xmms_field = mms::XMmsFields::default();
+            let mut idx = 0;
 
-    let mut xmms_field = mms::XMmsFields::default();
-    let mut idx = 0;
+            while idx < body.len() && parse_xmms_field(&body, &mut xmms_field, &mut idx).is_ok() {}
+            tracing::debug!("\n{}", xmms_field);
 
-    while idx < body.len() && parse_xmms_field(&body, &mut xmms_field, &mut idx).is_ok() {}
-    tracing::debug!("\n{}", xmms_field);
-
-    // tokio::fs::write("m-send-conf.pdu", &body).await?;
-    tracing::debug!("Receive {} bytes", body.len());
-    Ok(MmsStatus {
-        message_id: xmms_field.message_id.unwrap_or("Unknown".into()),
-        response_status: xmms_field
-            .response_status
-            .unwrap_or(ResponseStatus::Unknown),
-    })
+            // tokio::fs::write("m-send-conf.pdu", &body).await?;
+            tracing::debug!("Receive {} bytes", body.len());
+            Ok(MmsStatus {
+                message_id: xmms_field.message_id.unwrap_or("Unknown".into()),
+                response_status: xmms_field
+                    .response_status
+                    .unwrap_or(ResponseStatus::Unknown),
+            })
+        }
+        Err(e) => Err(e.into()),
+    }
 }
 
 fn tracing_debug_hex(source: &[u8]) -> Result<(), Box<dyn std::error::Error>> {

@@ -15,7 +15,7 @@ pub(crate) fn new(content: &[MmsContent], from: Option<&str>, to: &[&str]) -> Sm
     output.push(XMmsFieldName::MessageType as u8 | 0x80);
     output.push(MessageType::MSendReq as u8);
     output.push(XMmsFieldName::TransactionId as u8 | 0x80);
-    let reference = format!("{}\0", Uuid::new_v4().to_string());
+    let reference = format!("{}\0", Uuid::new_v4());
     output.extend_from_slice(reference.as_bytes());
     output.push(XMmsFieldName::Version as u8 | 0x80);
     output.push(0x92); // version 1.2
@@ -77,32 +77,38 @@ pub(crate) fn new(content: &[MmsContent], from: Option<&str>, to: &[&str]) -> Sm
                 format!("<image{:06}>", index),
                 format!("image{:06}.jpg", index),
             ),
+            WspContentType::WspWellKnownContentType(ImagePng) => (
+                format!("image{:06}.png", index),
+                None,
+                format!("<image{:06}>", index),
+                format!("image{:06}.png", index),
+            ),
             WspContentType::WspWellKnownContentType(TextPlain) => (
                 format!("text{:06}.txt", index),
                 Some(Charset::Utf8),
                 format!("<text{:06}>", index),
                 format!("text{:06}.txt", index),
             ),
-            WspContentType::Custom(custom) => match custom.as_str() {
-                "audio/mp4" => (
-                    format!("recording{:06}.m4a", index),
-                    Some(Charset::Utf8),
-                    format!("<recording{:06}>", index),
-                    format!("recording{:06}.m4a", index),
-                ),
-                "application/smil" => (
-                    "smil.xml".to_string(),
-                    None,
-                    "\"<smil>".to_string(),
-                    "smil.xml".to_string(),
-                ),
-                _ => Err(Error::Other(format!(
-                    "content_type {:?} is not implemented",
-                    content_type
-                )))?,
-            },
+            WspContentType::Custom(WspContentType::AUDIO_MP4) => (
+                format!("recording{:06}.m4a", index),
+                None,
+                format!("<recording{:06}>", index),
+                format!("recording{:06}.m4a", index),
+            ),
+            WspContentType::Custom(WspContentType::VIDEO_MP4) => (
+                format!("video{:06}.mp4", index),
+                None,
+                format!("<video{:06}>", index),
+                format!("video{:06}.mp4", index),
+            ),
+            WspContentType::Custom(WspContentType::APP_SMIL) => (
+                "smil.xml".to_string(),
+                None,
+                "\"<smil>".to_string(),
+                "smil.xml".to_string(),
+            ),
             _ => Err(Error::Other(
-                format!("content_type {:?} is not implemented", content_type).into(),
+                format!("content_type {:?} is not implemented", content_type),
             ))?,
         };
 
@@ -110,11 +116,27 @@ pub(crate) fn new(content: &[MmsContent], from: Option<&str>, to: &[&str]) -> Sm
             WspContentType::Custom(s) => s.len() + 1,
             WspContentType::WspWellKnownContentType(_) => 1,
         };
-        let content_header_len = content_type_len + content_name.len() + 1 + 1;
-        let header_len = content_header_len + content_id.len() + content_disp.len() + 2 + 2 + 1;
+        let mut content_header_len = content_type_len + content_name.len() + 1 + 1;
+        if charset.is_some() {
+            content_header_len += 2;
+        }
 
+        let mut header_len = content_header_len + content_id.len() + content_disp.len() + 2 + 2 + 1;
+        if content_header_len > 30 {
+            header_len += 1;
+        }
         write_uintvar(output, header_len as _);
         write_uintvar(output, content_len as _);
+        // Value-length =
+        //     Short-length
+        //   | (Length-quote Uintvar-integer)
+        //
+        // Short-length = 0..30
+        // Length-quote = 31 (0x1F)
+        // 0x1F means that the following value is the length encoded as a Uintvar-integer.
+        if content_header_len > SHORT_LENGTH_MAX {
+            output.push(LENGTH_QUOTE);
+        }
         write_uintvar(output, content_header_len as _);
         match &content_type {
             WspContentType::Custom(s) => {
@@ -144,7 +166,7 @@ pub(crate) fn new(content: &[MmsContent], from: Option<&str>, to: &[&str]) -> Sm
     create_header(
         &mut output,
         smil_content.len(),
-        WspContentType::Custom("application/smil".into()),
+        WspContentType::Custom("application/smil"),
         0,
     )?;
     output.extend_from_slice(smil_content.as_bytes());
@@ -181,7 +203,11 @@ fn new_smil_boilerplate(content: &[MmsContent]) -> SmResult<String> {
     use WspWellKnownContentType::*;
     if content
         .iter()
-        .find(|c| c.content_type == WspContentType::WspWellKnownContentType(ImageJpeg))
+        .find(|c| {
+            c.content_type == WspContentType::WspWellKnownContentType(ImageJpeg)
+                || c.content_type == WspContentType::WspWellKnownContentType(ImagePng)
+                || c.content_type == WspContentType::Custom(WspContentType::VIDEO_MP4)
+        })
         .is_some()
     {
         let mut region = Element::new("region");
@@ -216,6 +242,7 @@ fn new_smil_boilerplate(content: &[MmsContent]) -> SmResult<String> {
 
     let mut body = Element::new("body");
 
+    // TODO : Maybe adjust Duration for Audios & Videos
     for (idx, media) in content.iter().enumerate() {
         let mut par = Element::new("par");
         match media.content_type {
@@ -227,6 +254,14 @@ fn new_smil_boilerplate(content: &[MmsContent]) -> SmResult<String> {
                 img.attributes.insert("region".into(), "Image".into());
                 par.children.push(XMLNode::Element(img));
             }
+            WspContentType::WspWellKnownContentType(ImagePng) => {
+                par.attributes.insert("dur".into(), "5000ms".into());
+                let mut img = Element::new("img");
+                img.attributes
+                    .insert("src".into(), format!("image{:06}.png", idx));
+                img.attributes.insert("region".into(), "Image".into());
+                par.children.push(XMLNode::Element(img));
+            }
             WspContentType::WspWellKnownContentType(TextPlain) => {
                 par.attributes.insert("dur".into(), "5000ms".into());
                 let mut text = Element::new("text");
@@ -235,18 +270,26 @@ fn new_smil_boilerplate(content: &[MmsContent]) -> SmResult<String> {
                 text.attributes.insert("region".into(), "Text".into());
                 par.children.push(XMLNode::Element(text));
             }
-            // Some()
-            // Some(MmsContentType::AudioMp4) => {
-            //     par.attributes.insert("dur".into(), "5000ms".into()); // TODO sound duration
-            //     let mut audio = Element::new("audio");
-            //     audio
-            //         .attributes
-            //         .insert("src".into(), format!("recording{:06}.m4a", idx));
-            //     audio.attributes.insert("dur".into(), "5000ms".into()); // TODO sound duration
-            //     par.children.push(XMLNode::Element(audio));
-            // }
-            // Some(MmsContentType::ApplicationSmilXml) => unimplemented!(),
-            _ => unimplemented!(),
+            WspContentType::Custom(WspContentType::AUDIO_MP4) => {
+                par.attributes.insert("dur".into(), "5000ms".into());
+                let mut audio = Element::new("audio");
+                audio
+                    .attributes
+                    .insert("src".into(), format!("recording{:06}.m4a", idx));
+                audio.attributes.insert("dur".into(), "5000ms".into());
+                par.children.push(XMLNode::Element(audio));
+            }
+            WspContentType::Custom(WspContentType::VIDEO_MP4) => {
+                par.attributes.insert("dur".into(), "5000ms".into());
+                let mut img = Element::new("video");
+                img.attributes
+                    .insert("src".into(), format!("video{:06}.mp4", idx));
+                img.attributes.insert("region".into(), "Image".into());
+                par.children.push(XMLNode::Element(img));
+            }
+            _ => Err(Error::Other(
+                format!("content_type {:?} is not implemented", media.content_type),
+            ))?,
         }
         body.children.push(XMLNode::Element(par));
     }

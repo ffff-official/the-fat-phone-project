@@ -11,6 +11,16 @@ use num_enum::TryFromPrimitive;
 use std::ffi::CStr;
 use std::fmt;
 
+// WSP Length-quote marker : Indicates that the following length is encoded as a `Uintvar-integer`.
+// Value-length =
+//     Short-length
+//   | (Length-quote Uintvar-integer)
+//
+// Short-length = 0..30
+// Length-quote = 31 (0x1F)
+const LENGTH_QUOTE: u8 = 0x1F;
+const SHORT_LENGTH_MAX: usize = 30;
+
 /// In the encoding of the header fields, the order of the fields is not significant, except that X-Mms-Message-Type,
 /// X-Mms-Transaction-ID (when present) and X-Mms-MMS-Version MUST be at the beginning of the message headers,
 /// in that order, and if the PDU contains a message body the Content Type MUST be the last header field, followed by message body
@@ -411,7 +421,14 @@ pub(crate) enum RetrieveStatus {
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum WspContentType {
     WspWellKnownContentType(WspWellKnownContentType),
-    Custom(String),
+    Custom(&'static str),
+}
+
+impl WspContentType {
+    pub const AUDIO_MP4: &'static str = "audio/mp4";
+    pub const APP_SMIL: &'static str = "application/smil";
+    pub const VIDEO_MP4: &'static str = "video/mp4";
+    pub(crate) const UNKNOWN: &'static str = "Unknown content type";
 }
 
 /// Well Know Content type list
