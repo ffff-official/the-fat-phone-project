@@ -1,14 +1,14 @@
 //! A Rust library for interacting with QMI-compatible cellular modems.
 //!
 //! The library provides an asynchronous API for:
+//! - Placing, answering, and terminating voice calls.
 //! - Sending and receiving SMS messages.
+//! - Downloading and sending MMS messages.
 //! - Receiving SMS delivery reports.
 //! - Receiving MMS notifications (WAP Push).
-//! - Downloading and sending MMS messages.
 //! - Managing packet data connections.
 //! - Monitoring network registration and connectivity.
 //! - Managing UIM (SIM) cards and applications.
-//! - Placing, answering, and terminating voice calls.
 //! - Receiving asynchronous modem events, including SMS, MMS, and call status indications.
 //!
 //! # Alpha status

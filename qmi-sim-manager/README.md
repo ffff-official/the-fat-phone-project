@@ -1,10 +1,11 @@
+[![Docs.rs](https://docs.rs/qmi-sim-manager/badge.svg)](https://docs.rs/qmi-sim-manager)
 # qmi-sim-manager
 
 A Rust library for interacting with QMI-compatible cellular modems.
 
 The library provides an asynchronous API for:
 
-* Provides voice calling capabilities.
+* Placing, answering, and terminating voice calls.
 * Sending and receiving SMS messages.
 * Downloading and sending MMS messages.
 * Receiving SMS delivery reports.
@@ -12,7 +13,6 @@ The library provides an asynchronous API for:
 * Managing packet data connections.
 * Monitoring network registration and connectivity.
 * Managing UIM (SIM) cards and applications.
-* Placing, answering, and terminating voice calls.
 * Receiving asynchronous modem events, including SMS, MMS, and call status indications.
 
 ## Features

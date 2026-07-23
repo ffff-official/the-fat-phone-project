@@ -6,7 +6,7 @@ authors = ["bmickael <bmickael@proton.me>"]
 repository = "https://gitlab.com/mordaklavache/the-fat-phone-project"
 description = "SMS, MMS, and call management for Qualcomm-based modems"
 readme = "README.md"
-keywords = ["gsm", "qmi"]
+keywords = ["gsm", "qmi", "sms", "mms", "phone"]
 license = "MIT/Apache-2.0"
 
 [dependencies]
