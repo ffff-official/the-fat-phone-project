@@ -5,6 +5,7 @@ use libqmi_glib_types_rs::{DeviceExpectedDataFormat, WdsConnectionStatus};
 
 use futures::TryStreamExt;
 use nix::libc::EEXIST;
+use rtnetlink::packet_route::AddressFamily;
 use rtnetlink::packet_route::link::LinkFlags;
 use rtnetlink::{LinkUnspec, new_connection};
 use tokio::runtime::Handle;
@@ -64,6 +65,19 @@ pub(crate) async fn start_network(
 
                 // ip link set dev wwan0 up
                 handle.link().set(msg).execute().await?;
+
+                // Remove every existing IP address from the interface.
+                let mut addresses = handle
+                    .address()
+                    .get()
+                    .set_link_index_filter(ifindex)
+                    .execute();
+
+                while let Some(address) = addresses.try_next().await? {
+                    if address.header.family == AddressFamily::Inet {
+                        handle.address().del(address).execute().await?;
+                    }
+                }
 
                 fn netmask_to_prefix(mask: Ipv4Addr) -> u8 {
                     u32::from(mask).count_ones() as u8
