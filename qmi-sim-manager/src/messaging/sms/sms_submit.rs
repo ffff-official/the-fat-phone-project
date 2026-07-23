@@ -18,7 +18,7 @@ use crate::Error;
 use super::*;
 
 use bitfields::bitfield;
-use gsm7_rs::Gsm7Writer;
+use crate::gsm7::Gsm7Writer;
 
 use std::mem::size_of;
 use std::sync::atomic::{AtomicU8, Ordering};
@@ -137,7 +137,7 @@ pub(crate) fn get_sms_deliver_tpdu(
 
                 for c in content.chars() {
                     //dbg!(gsm7_offset);
-                    match gsm7_rs::is_extended_character(c) {
+                    match crate::gsm7::is_extended_character(c) {
                         false => {
                             if gsm7_offset >= MAX_SMS_TP_UD_GSM7_SEPTETS - 7 {
                                 sms_array.push(create_sms(writer, sms_array.len())?);

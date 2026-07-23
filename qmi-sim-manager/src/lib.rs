@@ -969,3 +969,5 @@ fn configure_tracing() {
 
     drop(tracing_subscriber::registry().with(stdout_layer).try_init());
 }
+
+pub(crate) mod gsm7;

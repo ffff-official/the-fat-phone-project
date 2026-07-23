@@ -14,7 +14,7 @@
 //! └── Address-Value (0..10 bytes)
 
 use bitfields::{bitfield, bitflag};
-use gsm7_rs::Gsm7Reader;
+use crate::gsm7::Gsm7Reader;
 
 use crate::{Error, SmResult, messaging::SliceResultExt};
 
