@@ -1,7 +1,7 @@
 pub(crate) mod mms;
 pub(crate) mod sms;
 
-use crate::messaging::mms::m_retrieve_conf::WspContentType;
+use crate::messaging::mms::WspContentType;
 use crate::messaging::sms::SmsType;
 use crate::network::WWAN_INTERFACE;
 use crate::{Event, SmResult};
@@ -162,28 +162,22 @@ pub(crate) async fn get_mms(url: String) -> SmResult<Vec<MmsContent>> {
         tracing::debug!("Writing MMS");
 
         let content = response.bytes().await?;
-        tracing::error!("MMS must not be writed here, maybe only for debug");
 
         #[cfg(debug_assertions)]
-        drop(tokio::fs::write("mms.bin", content.clone()).await);
+        {
+            tracing::warn!("MMS must not be writed here, it is only for debug");
+            drop(tokio::fs::write("mms.bin", content.clone()).await);
+        }
 
         let parsed = mms::m_retrieve_conf::WspMRetrieveConf::try_from(content.as_ref())?;
         tracing::debug!("{}", parsed);
 
         if let WapMultiPart(v) = parsed.body {
-            use MmsContentType as OuterType;
-            use WspContentType::WspWellKnownContentType;
-            use mms::WspWellKnownContentType as InnerType;
             Ok(v.parts
                 .into_iter()
                 .map(|part| MmsContent {
                     content: part.body.to_vec(),
-                    content_type: match part.headers.content_type {
-                        WspWellKnownContentType(InnerType::ImageJpeg) => Some(OuterType::ImageJpeg),
-                        WspWellKnownContentType(InnerType::TextPlain) => Some(OuterType::TextPlain),
-                        WspContentType::String(s) if s == "audio/mp4" => Some(OuterType::AudioMp4),
-                        _ => None,
-                    },
+                    content_type: part.headers.content_type,
                 })
                 .collect::<Vec<MmsContent>>())
         } else {
@@ -202,7 +196,7 @@ pub struct MmsContent {
     /// The raw content of the part.
     pub content: Vec<u8>,
     /// The MIME type of the content, if known.
-    pub content_type: Option<MmsContentType>,
+    pub content_type: WspContentType,
 }
 
 impl fmt::Debug for MmsContent {
@@ -225,25 +219,12 @@ pub struct MmsStatus {
     pub response_status: ResponseStatus,
 }
 
-/// Represents the MIME type of an MMS content part.
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
-pub enum MmsContentType {
-    /// `image/jpeg`
-    ImageJpeg,
-    /// `audio/mp4`
-    AudioMp4,
-    /// `text/plain`
-    TextPlain,
-    /// `application/smil+xml`
-    ApplicationSmilXml,
-}
-
 impl MmsContent {
     /// Creates a new MMS content part.
-    pub fn new(content: Vec<u8>, content_type: MmsContentType) -> Self {
+    pub fn new(content: Vec<u8>, content_type: WspContentType) -> Self {
         Self {
             content,
-            content_type: Some(content_type),
+            content_type,
         }
     }
 }

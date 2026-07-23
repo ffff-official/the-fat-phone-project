@@ -213,7 +213,7 @@ pub(crate) async fn glib_control_loop(
             Err(TryRecvError::Empty) => {
                 glib::timeout_future(GLIB_CONTROL_LOOP_PERIOD_MS).await;
             }
-            Err(e) => Err(e).map_err(|e| Error::Other(Box::new(e)))?,
+            Err(e) => Err(e).map_err(|e| Error::Other(e.to_string()))?,
         }
     }
     Ok("GLIB_CONTROL_LOOP_TIMER_COND set to FALSE".into())

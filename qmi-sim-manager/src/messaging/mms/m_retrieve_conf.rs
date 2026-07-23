@@ -80,6 +80,7 @@ fn get_part<'a>(source: &'a [u8], idx: &mut usize) -> SmResult<WspPart<'a>> {
     let (header_len, idx_offset) =
         read_uintvar(source.get_result(*idx..)?).ok_or("cannot get header len")?;
     *idx += idx_offset;
+
     let (content_len, content_offset) =
         read_uintvar(source.get_result(*idx..)?).ok_or("cannot get content len")?;
     *idx += content_offset;
@@ -89,15 +90,27 @@ fn get_part<'a>(source: &'a [u8], idx: &mut usize) -> SmResult<WspPart<'a>> {
     let begin_body = begin_header + header_len as usize;
     let next_part = begin_body + content_len as usize;
     let header_raw_data = source.get_result(begin_header..begin_body)?;
+
     // The bellow content-header length represents ONLY `content-type + content-name` | `content-type + content charset + content-name`
     // The (others field) total length is calculated like that `header_len` - `content-header length`
-    let (content_header_len, content_header_offset) =
-        read_uintvar(source.get_result(*idx..)?).ok_or("cannot get content head len")?;
-    tracing::debug!("Content-header-len = {}", content_header_len);
-
+    // Value-length =
+    //     Short-length
+    //   | (Length-quote Uintvar-integer)
+    //
+    // Short-length = 0..30
+    // Length-quote = 31 (0x1F)
+    // 0x1F means that the following value is the length encoded as a Uintvar-integer.
     let mut calcultated_content_header_len = 0; // Coherency check
+    let mut content_header_len = *source.get_result(*idx)? as usize;
+    *idx += 1;
 
-    *idx += content_header_offset;
+    if content_header_len == 0x1f {
+        let (new_len, content_header_offset) =
+            read_uintvar(source.get_result(*idx..)?).ok_or("cannot get header len")?;
+        content_header_len = new_len as _;
+        *idx += content_header_offset;
+    }
+    tracing::debug!("Content-header-len = {}", content_header_len);
 
     let old_idx = *idx; // coherency check
     let content_type_value = *source.get_result(*idx)?;
@@ -107,7 +120,7 @@ fn get_part<'a>(source: &'a [u8], idx: &mut usize) -> SmResult<WspPart<'a>> {
             content_type_value & 0x7F,
         )?)
     } else {
-        WspContentType::String(string_until_nul(source, idx)?)
+        WspContentType::Custom(string_until_nul(source, idx)?)
     };
     tracing::debug!("Content_type = {}", content_type);
     calcultated_content_header_len += *idx - old_idx; // coherency check
@@ -239,12 +252,6 @@ impl<'a> WspPartHeaders<'a> {
     pub const CONTENT_NAME: u8 = 0x85;
     pub const CONTENT_ID: u8 = 0xC0;
     pub const CONTENT_DISPOSITION: u8 = 0x8E;
-}
-
-#[derive(Debug)]
-pub(crate) enum WspContentType {
-    WspWellKnownContentType(WspWellKnownContentType),
-    String(String),
 }
 
 #[derive(Debug, TryFromPrimitive, Default, Copy, Clone)]
@@ -416,7 +423,7 @@ impl fmt::Display for WspContentType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             WspContentType::WspWellKnownContentType(ct) => write!(f, "{ct}"),
-            WspContentType::String(s) => write!(f, "{s}"),
+            WspContentType::Custom(s) => write!(f, "custom = {s}"),
         }
     }
 }

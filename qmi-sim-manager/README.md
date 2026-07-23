@@ -16,40 +16,35 @@ The library provides an asynchronous API for:
 * Managing packet data connections.
 * Monitoring network registration and connectivity.
 * Managing UIM (SIM) cards and applications.
-* Receiving asynchronous modem events, including SMS, MMS, and call status indications.
+* Receiving asynchronous modem events.
 
 ## Features
 
 * Native asynchronous Rust API based on `async`/`await`.
-* Async runtime powered by Tokio and GLib.
+* Powered by Tokio and GLib.
 * Direct communication with QMI-compatible modems.
 * No dependency on ModemManager or D-Bus.
-* SMS transmission and reception.
-* SMS delivery reports.
-* MMS notification (WAP Push) reception.
-* MMS download and submission.
-* Voice call management.
-* Packet data connection management.
-* Network registration monitoring.
-* UIM (SIM) management.
 * Event-driven API based on `futures::Stream`.
 * Suitable for embedded, kiosk, and headless Linux systems.
 
-## Alpha status
+## Beta status
 
-This library is currently in an **alpha** stage. Its API and behavior may change before the first stable release.
+The public API is considered stable and is not expected to undergo significant changes before the first stable release.
+
+The library is still under active development, and some features are incomplete and can receive improvements based on feedback.
 
 At the moment:
 
-* MMS sending is limited to image attachments.
 * SIM/UIM features are still limited.
+* The library cannot currently configure the default gateway.
 
 ## Example
 
 ```rust,no_run
 use futures::stream::StreamExt;
 use qmi_sim_manager::ClientHandle;
-use qmi_sim_manager::mms::{MmsContent, MmsContentType};
+use qmi_sim_manager::mms::{MmsContent, WspContentType};
+use qmi_sim_manager::mms::WspWellKnownContentType::ImageJpeg;
 
 use std::path::PathBuf;
 use std::time::Duration;
@@ -68,7 +63,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             "http://mms.free.fr",
             vec![MmsContent {
                 content: tokio::fs::read("bibendum.jpg").await?,
-                content_type: Some(MmsContentType::ImageJpeg),
+                content_type: content_type: WspContentType::WspWellKnownContentType(ImageJpeg),
             }],
             None,
             &["33612402244"],
@@ -254,6 +249,7 @@ This library is under active development.
 
 Future releases are expected to expand support for additional modem features, including:
 
+* AT command support.
 * Extended SIM/UIM management.
 * GPS and positioning services.
 * Additional QMI services.

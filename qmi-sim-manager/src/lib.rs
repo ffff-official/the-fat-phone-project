@@ -67,8 +67,8 @@ pub mod sms {
 }
 /// Types related to MMS messages.
 pub mod mms {
-    pub use crate::messaging::mms::ResponseStatus;
-    pub use crate::messaging::{MmsContent, MmsContentType, MmsStatus};
+    pub use crate::messaging::mms::{ResponseStatus, WspContentType, WspWellKnownContentType};
+    pub use crate::messaging::{MmsContent, MmsStatus};
 }
 /// Types related to VOICE calls.
 pub mod voice {
@@ -175,7 +175,7 @@ impl ClientHandle {
 
         let engine_sender = status_receiver
             .recv()
-            .map_err(|e| Error::Other(Box::new(e)))??;
+            .map_err(|e| Error::Other(e.to_string()))??;
 
         let client = Client {
             inner: Arc::new(SmClientInner { engine_sender }),
@@ -288,8 +288,8 @@ pub enum Error {
     #[error("Raw service response could not be downcast to the requested type")]
     DowncastingFailed,
     /// Generic error. This error will be removed in a future version.
-    #[error(transparent)]
-    Other(#[from] Box<dyn std::error::Error + Send + Sync>),
+    #[error("Generic Error")]
+    Other(String),
 }
 
 impl From<String> for Error {
@@ -536,7 +536,8 @@ impl Client {
     /// successfully processed.
     /// ```no_run
     /// # use qmi_sim_manager::ClientHandle;
-    /// use qmi_sim_manager::mms::{MmsContent, MmsContentType};
+    /// use qmi_sim_manager::mms::{MmsContent, WspContentType};
+    /// use qmi_sim_manager::mms::WspWellKnownContentType::ImageJpeg;
     ///
     /// # use std::path::PathBuf;
     /// #
@@ -553,7 +554,7 @@ impl Client {
     ///         "http://mms.free.fr",
     ///         vec![MmsContent {
     ///             content: tokio::fs::read("bibendum.jpg").await?,
-    ///             content_type: Some(MmsContentType::ImageJpeg),
+    ///             content_type: WspContentType::WspWellKnownContentType(ImageJpeg)
     ///         }],
     ///         None,
     ///         &["33612892311"],

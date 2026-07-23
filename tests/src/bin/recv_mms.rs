@@ -1,6 +1,7 @@
 use dotenvy::dotenv;
 use futures::stream::StreamExt;
-use qmi_sim_manager::mms::MmsContentType;
+use qmi_sim_manager::mms::WspContentType;
+use qmi_sim_manager::mms::WspWellKnownContentType::{ImageJpeg, TextPlain};
 use qmi_sim_manager::{ClientHandle, Error, Event};
 
 use std::env;
@@ -25,16 +26,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 client.start_network("free").await?;
                 let output = client.get_mms(wap_push.content_location.clone()).await?;
                 for content in output {
-                    dbg!(content.content_type);
+                    dbg!(&content.content_type);
                     let path = match content.content_type {
-                        Some(MmsContentType::ImageJpeg) => {
+                        WspContentType::WspWellKnownContentType(ImageJpeg) => {
                             format!("mmstest_image{:02?}.jpg", count)
                         }
-                        Some(MmsContentType::AudioMp4) => format!("mmstest_audio{:02?}.m4a", count),
-                        Some(MmsContentType::TextPlain) => format!("mmstest_text{:02?}.txt", count),
-                        Some(MmsContentType::ApplicationSmilXml) => {
-                            format!("mmstest_smil{:02?}.sml", count)
+                        WspContentType::WspWellKnownContentType(TextPlain) => {
+                            format!("mmstest_text{:02?}.txt", count)
                         }
+                        WspContentType::Custom(custom) => match custom.as_str() {
+                            "audio/mp4" => format!("mmstest_audio{:02?}.m4a", count),
+                            "application/smil" => format!("mmstest_smil{:02?}.sml", count),
+                            _ => format!("mmstest_unknown{:02?}.unk", count),
+                        },
                         _ => format!("mmstest_unknown{:02?}.unk", count),
                     };
                     count += 1;

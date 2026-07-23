@@ -407,14 +407,24 @@ pub(crate) enum RetrieveStatus {
     ErrorPermanentContentUnsupported,
 }
 
-#[derive(Debug, TryFromPrimitive, Eq, PartialEq, Copy, Clone)]
+/// Represents the MIME type of an MMS content part.
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub enum WspContentType {
+    WspWellKnownContentType(WspWellKnownContentType),
+    Custom(String),
+}
+
+/// Well Know Content type list
+#[derive(Debug, TryFromPrimitive, Eq, PartialEq, Copy, Clone, Hash)]
 #[repr(u8)]
-pub(crate) enum WspWellKnownContentType {
+pub enum WspWellKnownContentType {
     Any = 0x00,
+    /// `text/plain`
     TextPlain = 0x03,
     MultipartMixed = 0x0C,
     MultipartAlternative = 0x0F,
     ImageGif = 0x1D,
+    /// `image/jpeg`
     ImageJpeg = 0x1E,
     ImagePng = 0x20,
     ApplicationXml = 0x27,

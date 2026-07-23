@@ -1,6 +1,7 @@
 use dotenvy::dotenv;
 use qmi_sim_manager::ClientHandle;
-use qmi_sim_manager::mms::{MmsContent, MmsContentType};
+use qmi_sim_manager::mms::WspWellKnownContentType::ImageJpeg;
+use qmi_sim_manager::mms::{MmsContent, WspContentType};
 
 use std::env;
 use std::path::PathBuf;
@@ -22,7 +23,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             "http://mms.free.fr",
             vec![MmsContent {
                 content: tokio::fs::read("bibendum.jpg").await?,
-                content_type: Some(MmsContentType::ImageJpeg),
+                content_type: WspContentType::WspWellKnownContentType(ImageJpeg),
             }],
             None,
             &[&dest],
