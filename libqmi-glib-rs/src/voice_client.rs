@@ -301,6 +301,46 @@ impl VoiceClient {
         }
         rx.await.map_err(|_| QmiError::cb_droped())?
     }
+
+    /// Sends DTMF tones on an active voice call.
+    ///
+    /// # Parameters
+    ///
+    /// - `id`: The identifier of the active call.
+    /// - `digits`: The DTMF digits to send.
+    ///
+    /// # Returns
+    ///
+    /// Returns the call identifier reported by the modem.
+    pub async fn dtmf_tones_request(&self, id: u8, digits: impl AsRef<str>) -> QmiResult<u8> {
+        let (tx, rx) = oneshot::channel::<QmiResult<u8>>();
+
+        let digits = CString::new(digits.as_ref())
+            .map_err(|_e| QmiError::new("Trailing NULL value".to_string(), "dtmf_tones_request"))?;
+
+        let input = unsafe { qmi_message_voice_burst_dtmf_input_new() };
+
+        let mut error: *mut GError = null_mut();
+        let ret = unsafe {
+            qmi_message_voice_burst_dtmf_input_set_data(input, id, digits.as_ptr(), &mut error)
+        };
+        if ret == GFALSE {
+            unsafe { qmi_message_voice_burst_dtmf_input_unref(input) }
+            return Err((error, "end_call set_call_id").into());
+        }
+        unsafe {
+            qmi_client_voice_burst_dtmf(
+                self.client.as_ptr(),
+                input,
+                OPERATION_TIMEOUT,
+                null_mut(),
+                Some(dtmf_tones_request_cb),
+                Box::into_raw(Box::new(tx)).cast(),
+            );
+            qmi_message_voice_burst_dtmf_input_unref(input);
+        }
+        rx.await.map_err(|_| QmiError::cb_droped())?
+    }
 }
 
 unsafe extern "C" fn allocate_client_cb(
@@ -560,5 +600,37 @@ unsafe extern "C" fn end_call_cb(
         }
     };
     qmi_message_voice_end_call_output_unref(end_output);
+    drop(sender.send(output).inspect_err(cannot_send));
+}
+
+unsafe extern "C" fn dtmf_tones_request_cb(
+    client: *mut GObject,
+    res: *mut GAsyncResult,
+    user_data: *mut c_void,
+) {
+    let sender = Box::from_raw(user_data.cast::<oneshot::Sender<QmiResult<u8>>>());
+    let mut error: *mut GError = null_mut();
+
+    let dtmf_output = qmi_client_voice_burst_dtmf_finish(client.cast(), res, &mut error);
+    if dtmf_output.is_null() {
+        let _drop = sender
+            .send(Err((error, "dtmf_tones_request cb finish").into()))
+            .inspect_err(cannot_send);
+        return;
+    }
+    let output = if qmi_message_voice_burst_dtmf_output_get_result(dtmf_output, &mut error)
+        == GFALSE
+    {
+        Err((error, "dtmf_tones_request cb get_result").into())
+    } else {
+        let mut call_id: u8 = 0;
+        let ret =
+            qmi_message_voice_burst_dtmf_output_get_call_id(dtmf_output, &mut call_id, &mut error);
+        match ret {
+            GFALSE => Err((error, "dtmf_tones_request cb get_call_id").into()),
+            _ => Ok(call_id),
+        }
+    };
+    qmi_message_voice_burst_dtmf_output_unref(dtmf_output);
     drop(sender.send(output).inspect_err(cannot_send));
 }

@@ -15,6 +15,10 @@ keywords = [
 ]
 license = "MIT/Apache-2.0"
 
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
 [dependencies]
 libqmi-glib-sys.workspace = true
 qrtr-minimal.workspace = true
@@ -29,8 +33,6 @@ glib-sys.workspace = true
 system-deps = "7"
 
 [features]
-default = ["v1_36"]
-
 v1_4 = ["libqmi-glib-sys/v1_4"]
 v1_6 = ["libqmi-glib-sys/v1_6", "v1_4"]
 v1_8 = ["libqmi-glib-sys/v1_8", "v1_6"]

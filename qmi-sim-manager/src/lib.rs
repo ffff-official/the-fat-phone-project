@@ -27,11 +27,12 @@
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {
+//!     // Owns the service engine and is responsible for its initialization and shutdown.
 //!     let mut client_handle = ClientHandle::init(PathBuf::from("/dev/cdc-wdm1"))?;
 //!
 //!     // Client is used to call all library methods.
 //!     // It is cloneable and can be safely shared across multiple threads.
-//!     let _client = client_handle.client();
+//!     let client = client_handle.client();
 //!
 //!     // EventStream is used to receive all events.
 //!     // It is not cloneable, but it can be sent to another thread.
@@ -73,7 +74,7 @@ pub mod mms {
 pub mod voice {
     pub use libqmi_glib_rs::voice_client::VoiceCall;
 }
-/// Types related to UIM.
+/// Types related to UIM module.
 pub mod uim {
     pub use libqmi_glib_types_rs::MessageUimGetCardStatusOutputCardStatusCardsElement;
     pub use libqmi_glib_types_rs::MessageUimGetCardStatusOutputCardStatusCardsElementApplicationsElementV2;
@@ -283,7 +284,7 @@ pub enum Error {
     /// You can't get the events iterator twice.
     #[error("Events iterator already taken")]
     EventsIteratorAlreadyTaken,
-    /// Downcasting error on Raw Service feature
+    /// Downcasting error on libqmi-rs Service feature
     #[error("Raw service response could not be downcast to the requested type")]
     DowncastingFailed,
     /// Generic error. This error will be removed in a future version.
@@ -372,19 +373,19 @@ impl Client {
     ///
     /// Returns the packet data connection status reported by the modem.
     /// ```no_run
-    /// use qmi_sim_manager::ClientHandle;
-    ///
-    /// use std::path::PathBuf;
-    ///
+    /// # use qmi_sim_manager::ClientHandle;
+    /// #
+    /// # use std::path::PathBuf;
+    /// #
     /// # #[tokio::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let client_handle = ClientHandle::init(PathBuf::from("/dev/cdc-wdm1"))?;
-    ///
-    /// let client = client_handle.client();
-    ///
+    /// # let client_handle = ClientHandle::init(PathBuf::from("/dev/cdc-wdm1"))?;
+    /// #
+    /// # let client = client_handle.client();
+    /// #
     /// client.start_network("free").await?;
-    ///
-    /// client_handle.shutdown().await?;
+    /// #
+    /// # client_handle.shutdown().await?;
     /// #    Ok(())
     /// # }
     /// ```
@@ -411,21 +412,21 @@ impl Client {
     ///
     /// Returns the final packet data connection status reported by the modem.
     /// ```no_run
-    /// use qmi_sim_manager::ClientHandle;
-    ///
-    /// use std::path::PathBuf;
-    ///
+    /// # use qmi_sim_manager::ClientHandle;
+    /// #
+    /// # use std::path::PathBuf;
+    /// #
     /// # #[tokio::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let client_handle = ClientHandle::init(PathBuf::from("/dev/cdc-wdm1"))?;
-    ///
-    /// let client = client_handle.client();
-    ///
-    /// client.start_network("free").await?;
-    ///
+    /// # let client_handle = ClientHandle::init(PathBuf::from("/dev/cdc-wdm1"))?;
+    /// #
+    /// # let client = client_handle.client();
+    /// #
+    /// # client.start_network("free").await?;
+    /// #
     /// client.stop_network().await?;
-    ///
-    /// client_handle.shutdown().await?;
+    /// #
+    /// # client_handle.shutdown().await?;
     /// #    Ok(())
     /// # }
     /// ```
@@ -455,19 +456,19 @@ impl Client {
     /// Returns one result per SMS segment. Each successful entry contains the
     /// message reference assigned by the modem.
     /// ```no_run
-    /// use qmi_sim_manager::ClientHandle;
-    ///
-    /// use std::path::PathBuf;
-    ///
+    /// # use qmi_sim_manager::ClientHandle;
+    /// #
+    /// # use std::path::PathBuf;
+    /// #
     /// # #[tokio::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let client_handle = ClientHandle::init(PathBuf::from("/dev/cdc-wdm1"))?;
-    ///
-    /// let client = client_handle.client();
-    ///
-    /// client.send_sms("32712786512", "This is bullshit !", true).await?;
-    ///
-    /// client_handle.shutdown().await?;
+    /// # let client_handle = ClientHandle::init(PathBuf::from("/dev/cdc-wdm1"))?;
+    /// #
+    /// # let client = client_handle.client();
+    /// #
+    /// client.send_sms("32712786512", "That's bullshit.", true).await?;
+    /// #
+    /// # client_handle.shutdown().await?;
     /// #    Ok(())
     /// # }
     /// ```
@@ -534,17 +535,17 @@ impl Client {
     /// Returns the MMS status reported by the MMSC when the message has been
     /// successfully processed.
     /// ```no_run
-    /// use qmi_sim_manager::ClientHandle;
+    /// # use qmi_sim_manager::ClientHandle;
     /// use qmi_sim_manager::mms::{MmsContent, MmsContentType};
     ///
-    /// use std::path::PathBuf;
-    ///
+    /// # use std::path::PathBuf;
+    /// #
     /// # #[tokio::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let client_handle = ClientHandle::init(PathBuf::from("/dev/cdc-wdm1"))?;
-    ///
-    /// let client = client_handle.client();
-    ///
+    /// # let client_handle = ClientHandle::init(PathBuf::from("/dev/cdc-wdm1"))?;
+    /// #
+    /// # let client = client_handle.client();
+    /// #
     /// // A mobile data connection is required to send an MMS through the MMSC.
     /// client.start_network("free").await?;
     /// let response = client
@@ -560,8 +561,8 @@ impl Client {
     ///     .await?;
     /// println!("{response:?}");
     /// client.stop_network().await?;
-    ///
-    /// client_handle.shutdown().await?;
+    /// #
+    /// # client_handle.shutdown().await?;
     /// #    Ok(())
     /// # }
     /// ```
@@ -600,14 +601,16 @@ impl Client {
     /// This is a low-level API. The supplied closure is executed by the service
     /// engine and may return any `Send + 'static` value.
     /// ```no_run
-    /// use qmi_sim_manager::{ClientHandle, libqmi::types::WdsConnectionStatus};
-    /// use std::path::PathBuf;
+    /// # use qmi_sim_manager::ClientHandle;
+    /// use qmi_sim_manager::libqmi::types::WdsConnectionStatus;
     ///
+    /// # use std::path::PathBuf;
+    /// #
     /// # #[tokio::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let client_handle = ClientHandle::init(PathBuf::from("/dev/cdc-wdm1"))?;
-    /// let client = client_handle.client();
-    ///
+    /// # let client_handle = ClientHandle::init(PathBuf::from("/dev/cdc-wdm1"))?;
+    /// # let client = client_handle.client();
+    /// #
     /// client.start_network("free").await?; // Activate a mobile data connection.
     ///
     /// let result = client
@@ -621,8 +624,8 @@ impl Client {
     ///     .with_wds(async move |client, _tk| { client.get_packet_service_status().await })
     ///     .await?;
     /// assert_eq!(result?, WdsConnectionStatus::Disconnected);
-    ///
-    /// client_handle.shutdown().await?;
+    /// #
+    /// # client_handle.shutdown().await?;
     /// #   Ok(())
     /// # }
     /// ```
@@ -663,16 +666,16 @@ impl Client {
     /// This is a low-level API. The supplied closure is executed by the service
     /// engine and may return any `Send + 'static` value.
     /// ```no_run
-    /// use qmi_sim_manager::ClientHandle;
-    ///
-    /// use std::path::PathBuf;
-    ///
+    /// # use qmi_sim_manager::ClientHandle;
+    /// #
+    /// # use std::path::PathBuf;
+    /// #
     /// # #[tokio::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let client_handle = ClientHandle::init(PathBuf::from("/dev/cdc-wdm1"))?;
-    ///
-    /// let client = client_handle.client();
-    ///
+    /// # let client_handle = ClientHandle::init(PathBuf::from("/dev/cdc-wdm1"))?;
+    /// #
+    /// # let client = client_handle.client();
+    /// #
     /// let routes = client
     ///     .with_wms(async move |wms, _tk| wms.get_routes().await)
     ///     .await??;
@@ -680,8 +683,8 @@ impl Client {
     /// for route in routes {
     ///     println!("{route:#?}");
     /// }
-    ///
-    /// client_handle.shutdown().await?;
+    /// #
+    /// # client_handle.shutdown().await?;
     /// # Ok(())
     /// # }
     /// ```
@@ -724,14 +727,14 @@ impl Client {
     /// engine and may return any `Send + 'static` value.
     ///
     /// ```no_run
-    /// use qmi_sim_manager::ClientHandle;
-    /// use std::path::PathBuf;
-    ///
+    /// # use qmi_sim_manager::ClientHandle;
+    /// # use std::path::PathBuf;
+    /// #
     /// # #[tokio::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let client_handle = ClientHandle::init(PathBuf::from("/dev/cdc-wdm1"))?;
-    /// let client = client_handle.client();
-    ///
+    /// # let client_handle = ClientHandle::init(PathBuf::from("/dev/cdc-wdm1"))?;
+    /// # let client = client_handle.client();
+    /// #
     /// // Retrieve the status of the available UIM cards and their applications.
     /// let card_statuses = client
     ///     .with_uim(async move |client, _tk| {
@@ -751,8 +754,8 @@ impl Client {
     ///     .await??;
     ///
     /// println!("Remaining PIN retries: {remaining_retries}");
-    ///
-    /// client_handle.shutdown().await?;
+    /// #
+    /// # client_handle.shutdown().await?;
     /// # Ok(())
     /// # }
     /// ```
@@ -795,22 +798,22 @@ impl Client {
     /// engine and may return any `Send + 'static` value.
     ///
     /// ```no_run
-    /// use futures::stream::StreamExt;
-    /// use qmi_sim_manager::{Client, ClientHandle};
+    /// # use futures::stream::StreamExt;
+    /// # use qmi_sim_manager::{Client, ClientHandle};
     /// use qmi_sim_manager::Event::VoiceCallEvent;
     /// use qmi_sim_manager::libqmi::types::VoiceCallState;
     ///
-    /// use std::path::PathBuf;
+    /// # use std::path::PathBuf;
     /// use std::time::Duration;
     ///
     /// # #[tokio::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let mut client_handle = ClientHandle::init(PathBuf::from("/dev/cdc-wdm1"))?;
-    ///
-    /// let client = client_handle.client();
-    ///
+    /// # let mut client_handle = ClientHandle::init(PathBuf::from("/dev/cdc-wdm1"))?;
+    /// #
+    /// # let client = client_handle.client();
+    /// #
     /// let mut events = client_handle.event_stream()?;
-    /// let h = tokio::spawn(async move {
+    /// let handler = tokio::spawn(async move {
     ///     // Process voice call events reported by the modem.
     ///     while let Some(event) = events.next().await {
     ///         if let VoiceCallEvent(items) = event {
@@ -841,7 +844,7 @@ impl Client {
     /// // Keep the client running for one minute before shutting it down.
     /// tokio::time::sleep(Duration::from_secs(60)).await;
     /// client_handle.shutdown().await?;
-    /// h.await?;
+    /// handler.await?;
     /// #    Ok(())
     /// # }
     /// ```

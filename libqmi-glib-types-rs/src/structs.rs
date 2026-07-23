@@ -11,6 +11,8 @@ use glib_boilerplates::Boilerplates;
 ///
 /// Instances of this structure are returned as part of the card status
 /// reported by the UIM service.
+#[cfg(feature = "v1_10")]
+#[cfg_attr(docsrs, doc(cfg(feature = "v1_10")))]
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Boilerplates)]
 #[boilerplates(prefix = "Qmi", source = "crate::ffi")]
 pub struct MessageUimGetCardStatusOutputCardStatusCardsElementApplicationsElementV2 {
@@ -34,7 +36,10 @@ pub struct MessageUimGetCardStatusOutputCardStatusCardsElementApplicationsElemen
     ///
     /// This identifies the personalization category whose status is reported
     /// by [`Self::personalization_state`].
+    #[cfg(feature = "v1_34")]
     pub personalization_feature: UimCardApplicationPersonalizationFeatureStatus,
+    #[cfg(not(feature = "v1_34"))]
+    pub personalization_feature: UimCardApplicationPersonalizationFeature,
     /// The number of remaining attempts to verify the personalization code.
     ///
     /// A value of zero may indicate that the personalization code is blocked
@@ -88,6 +93,8 @@ pub struct MessageUimGetCardStatusOutputCardStatusCardsElementApplicationsElemen
 /// A card may contain several applications, such as SIM, USIM, ISIM, or CSIM
 /// applications. Their individual states and PIN information are available
 /// through [`Self::applications`].
+#[cfg(feature = "v1_10")]
+#[cfg_attr(docsrs, doc(cfg(feature = "v1_10")))]
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Boilerplates)]
 #[boilerplates(prefix = "Qmi", source = "crate::ffi")]
 pub struct MessageUimGetCardStatusOutputCardStatusCardsElement {
@@ -157,6 +164,8 @@ pub struct MessageWmsGetRoutesOutputRouteListElement {
 ///
 /// The `id` field uniquely identifies the call and is used by other Voice
 /// service operations such as answering or ending a call.
+#[cfg(feature = "v1_14")]
+#[cfg_attr(docsrs, doc(cfg(feature = "v1_14")))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Boilerplates)]
 #[boilerplates(prefix = "Qmi", source = "crate::ffi")]
 pub struct IndicationVoiceAllCallStatusOutputCallInformationCall {

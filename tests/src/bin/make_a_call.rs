@@ -28,6 +28,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_voice(async move |client, _tk| client.dial_call(dest).await)
         .await??;
 
+    tokio::time::sleep(Duration::from_secs(30)).await;
+
+    if let Err(e) = client
+        .with_voice(async move |client, _tk| client.dtmf_tones_request(call_id, "345").await)
+        .await?
+    {
+        tracing::error!("Cannot send dtmf : {:?}", e);
+    }
+
     tokio::time::sleep(Duration::from_secs(10)).await;
 
     let _call_id = client
