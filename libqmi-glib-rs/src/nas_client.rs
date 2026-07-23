@@ -14,6 +14,7 @@ use std::ffi::c_void;
 use std::ptr::NonNull;
 use std::ptr::null_mut;
 
+/// A client for interacting with the Network Access Service (NAS) of a QMI device.
 #[derive(Debug)]
 pub struct NasClient {
     client: NonNull<QmiClientNas>,

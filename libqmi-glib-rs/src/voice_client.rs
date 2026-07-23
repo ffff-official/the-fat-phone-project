@@ -12,11 +12,12 @@ use libqmi_glib_types_rs::{
     VoicePresentation,
 };
 
+use std::cell::RefCell;
 use std::ffi::{CString, c_void};
 use std::ptr::NonNull;
 use std::ptr::null_mut;
 
-/// A client for interacting with the QMI Voice service.
+/// A client for interacting with the Voice service of a QMI device.
 ///
 /// [`VoiceClient`] provides asynchronous operations for managing voice calls
 /// through a QMI-compatible modem.
@@ -337,6 +338,27 @@ unsafe extern "C" fn release_client_cb(
     drop(sender.send(output).inspect_err(cannot_send));
 }
 
+// IMPORTANT: Quick-and-dirty workaround to suppress duplicate incoming call events.
+//            The modem occasionally reports the same incoming call twice.
+thread_local! {
+    static LAST_SNAPSHOTS: RefCell<Vec<VoiceCall>> =
+        const { RefCell::new(Vec::new()) };
+}
+
+fn filter_duplicates(mut snapshots: Vec<VoiceCall>) -> Vec<VoiceCall> {
+    LAST_SNAPSHOTS.with(|last_snapshots| {
+        let mut last_snapshots = last_snapshots.borrow_mut();
+
+        let current_snapshots = snapshots.clone();
+
+        snapshots.retain(|snapshot| !last_snapshots.contains(snapshot));
+
+        *last_snapshots = current_snapshots;
+
+        snapshots
+    })
+}
+
 unsafe extern "C" fn all_call_status_cb(
     _client: *mut GObject,
     output: *mut QmiIndicationVoiceAllCallStatusOutput,
@@ -407,6 +429,7 @@ unsafe extern "C" fn all_call_status_cb(
                     }
                 })
                 .collect();
+            let calls = filter_duplicates(calls);
             let cb = &mut *(user_data.cast::<CallInfoCallback>());
             cb(calls);
         }

@@ -24,7 +24,7 @@ use std::ptr::null_mut;
 type CardStatusOutputElem = MessageUimGetCardStatusOutputCardStatusCardsElement;
 type QmiCardStatusOutputElem = QmiMessageUimGetCardStatusOutputCardStatusCardsElement;
 
-/// A client for interacting with the QMI UIM service.
+/// A client for interacting with the User Identity Module (UIM) interface of a QMI device.
 ///
 /// [`UimClient`] provides asynchronous operations for accessing and managing
 /// User Identity Modules through a QMI-compatible modem.

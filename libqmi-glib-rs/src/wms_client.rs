@@ -30,7 +30,7 @@ pub struct WmsClient {
 
 impl Drop for WmsClient {
     fn drop(&mut self) {
-        tracing::debug!("WMS CLIENT is droped !");
+        tracing::trace!("WMS CLIENT is droped !");
         unsafe {
             g_object_unref(self.client.as_ptr().cast());
         }

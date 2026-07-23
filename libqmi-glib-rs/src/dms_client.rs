@@ -14,6 +14,7 @@ use std::ffi::c_void;
 use std::ptr::NonNull;
 use std::ptr::null_mut;
 
+/// A client for interacting with the Device Management Service (DMS) of a QMI device.
 #[derive(Debug)]
 pub struct DmsClient {
     client: NonNull<QmiClientDms>,

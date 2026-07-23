@@ -479,7 +479,7 @@ impl Client {
         reply_receiver.await?
     }
 
-    /// Make a raw request to the WDS service through libqmi-glib-rs.
+    /// Make a request to the WDS service through libqmi-glib-rs.
     ///
     /// The function body executes on the GLib runtime.
     /// The second parameter is a handle to the Tokio runtime, allowing Tokio tasks to be spawned if needed.
@@ -500,14 +500,14 @@ impl Client {
     /// client.start_network("free").await?; // Activate a mobile data connection.
     ///
     /// let result = client
-    ///     .with_wds(|client, _tk| async move { client.get_packet_service_status().await })
+    ///     .with_wds(async move |client, _tk| { client.get_packet_service_status().await })
     ///     .await?;
     /// assert_eq!(result?, WdsConnectionStatus::Connected);
     ///
     /// client.stop_network().await?;
     ///
     /// let result = client
-    ///     .with_wds(|client, _tk| async move { client.get_packet_service_status().await })
+    ///     .with_wds(async move |client, _tk| { client.get_packet_service_status().await })
     ///     .await?;
     /// assert_eq!(result?, WdsConnectionStatus::Disconnected);
     ///
@@ -542,7 +542,7 @@ impl Client {
         downcast_type(response)
     }
 
-    /// Make a raw request to the WMS service through libqmi-glib-rs.
+    /// Make a request to the WMS service through libqmi-glib-rs.
     ///
     /// The function body executes on the GLib runtime.
     /// The second parameter is a handle to the Tokio runtime, allowing Tokio tasks to be spawned if needed.
@@ -551,6 +551,29 @@ impl Client {
     ///
     /// This is a low-level API. The supplied closure is executed by the service
     /// engine and may return any `Send + 'static` value.
+    /// ```no_run
+    /// use qmi_sim_manager::ClientHandle;
+    ///
+    /// use std::path::PathBuf;
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let client_handle = ClientHandle::init(PathBuf::from("/dev/cdc-wdm1"))?;
+    ///
+    /// let client = client_handle.client();
+    ///
+    /// let routes = client
+    ///     .with_wms(async move |wms, _tk| wms.get_routes().await)
+    ///     .await??;
+    ///
+    /// for route in routes {
+    ///     println!("{route:#?}");
+    /// }
+    ///
+    /// client_handle.shutdown().await?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub async fn with_wms<T, F, Fut>(&self, executor: F) -> SmResult<T>
     where
         T: Send + 'static,
@@ -578,7 +601,7 @@ impl Client {
         downcast_type(response)
     }
 
-    /// Makes a raw request to the UIM service through `libqmi-glib-rs`.
+    /// Makes a request to the UIM service through `libqmi-glib-rs`.
     ///
     /// The function body executes on the GLib runtime.
     /// The second parameter is a handle to the Tokio runtime, allowing Tokio tasks
@@ -600,7 +623,7 @@ impl Client {
     ///
     /// // Retrieve the status of the available UIM cards and their applications.
     /// let card_statuses = client
-    ///     .with_uim(|client, _tk| async move {
+    ///     .with_uim(async move |client, _tk| {
     ///         client.get_card_status().await
     ///     })
     ///     .await??;
@@ -611,7 +634,7 @@ impl Client {
     ///
     /// // Verify the PIN1 code of the selected UIM application.
     /// let remaining_retries = client
-    ///     .with_uim(|client, _tk| async move {
+    ///     .with_uim(async move |client, _tk| {
     ///         client.verify_pin("1234").await
     ///     })
     ///     .await??;
@@ -649,7 +672,7 @@ impl Client {
         downcast_type(response)
     }
 
-    /// Makes a raw request to the QMI Voice service through `libqmi-glib-rs`.
+    /// Makes a request to the QMI Voice service through `libqmi-glib-rs`.
     ///
     /// The function body executes on the GLib runtime.
     /// The second parameter is a handle to the Tokio runtime, allowing Tokio tasks
@@ -661,48 +684,50 @@ impl Client {
     /// engine and may return any `Send + 'static` value.
     ///
     /// ```no_run
-    /// use qmi_sim_manager::{ClientHandle, Event};
-    /// use std::{path::PathBuf, time::Duration};
+    /// use futures::stream::StreamExt;
+    /// use qmi_sim_manager::ClientHandle;
+    /// use qmi_sim_manager::Event::VoiceCallEvent;
+    /// use qmi_sim_manager::libqmi::types::VoiceCallState;
+    ///
+    /// use std::path::PathBuf;
+    /// use std::time::Duration;
     ///
     /// # #[tokio::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let client_handle = ClientHandle::init(PathBuf::from("/dev/cdc-wdm1"))?;
+    /// let mut client_handle = ClientHandle::init(PathBuf::from("/dev/cdc-wdm1"))?;
+    ///
     /// let client = client_handle.client();
-    /// let mut events = client.event_stream();
     ///
-    /// // Enable asynchronous call-status indications.
-    /// client
-    ///     .with_voice(|client, _tk| async move {
-    ///         client.set_all_call_status(true).await
-    ///     })
-    ///     .await??;
-    ///
-    /// // Start an outgoing call.
-    /// let call_id = client
-    ///     .with_voice(|client, _tk| async move {
-    ///         client.dial_call("0612345678").await
-    ///     })
-    ///     .await??;
-    ///
-    /// // Wait until the modem reports that the call has started.
-    /// while let Some(event) = events.next_event().await {
-    ///     if let Event::VoiceCallEvent(call_event) = event {
-    ///         if call_event.is_call_begin(call_id) {
-    ///             tokio::time::sleep(Duration::from_secs(10)).await;
-    ///             break;
+    /// let mut events = client_handle.event_stream()?;
+    /// let h = tokio::spawn(async move {
+    ///     // Process voice call events reported by the modem.
+    ///     while let Some(event) = events.next().await {
+    ///         if let VoiceCallEvent(items) = event {
+    ///             for item in items {
+    ///                 let client_clone = client.clone();
+    ///                 if item.state == VoiceCallState::Incoming {
+    ///                     tokio::spawn(async move {
+    ///                         let id = item.id;
+    ///                         client_clone
+    ///                             .with_voice(async move |client, _tk| client.answer_call(id).await)
+    ///                             .await??;
+    ///                         // Keep the call active for ten seconds.
+    ///                         tokio::time::sleep(Duration::from_secs(10)).await;
+    ///                         client_clone
+    ///                             .with_voice(async move |client, _tk| client.end_call(id).await)
+    ///                             .await??;
+    ///                         Ok::<_, qmi_sim_manager::Error>(())
+    ///                     });
+    ///                 }
+    ///             }
     ///         }
     ///     }
-    /// }
-    ///
-    /// // Terminate the call after ten seconds.
-    /// client
-    ///     .with_voice(move |client, _tk| async move {
-    ///         client.end_call(call_id).await
-    ///     })
-    ///     .await??;
-    ///
+    /// });
+    /// // Keep the client running for one minute before shutting it down.
+    /// tokio::time::sleep(Duration::from_secs(60)).await;
     /// client_handle.shutdown().await?;
-    /// # Ok(())
+    /// h.await?;
+    /// #    Ok(())
     /// # }
     /// ```
     pub async fn with_voice<T, F, Fut>(&self, executor: F) -> SmResult<T>

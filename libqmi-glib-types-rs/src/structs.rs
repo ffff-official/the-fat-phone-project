@@ -126,12 +126,25 @@ pub struct MessageUimGetCardStatusOutputCardStatusCardsElement {
     pub applications: Vec<MessageUimGetCardStatusOutputCardStatusCardsElementApplicationsElementV2>,
 }
 
+/// Describes a message routing rule configured in the modem.
+///
+/// Each instance defines how a specific category of incoming messages should
+/// be handled. The rule matches a combination of message type and message
+/// class, and specifies both the storage location and the action to perform
+/// when a matching message is received.
+///
+/// The modem may expose multiple routing rules, each applying to a different
+/// combination of message type and class.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Boilerplates)]
 #[boilerplates(prefix = "Qmi", source = "crate::ffi")]
 pub struct MessageWmsGetRoutesOutputRouteListElement {
+    /// Type of message matched by this routing rule.
     pub message_type: WmsMessageType,
+    /// Message class matched by this routing rule.
     pub message_class: WmsMessageClass,
+    /// Storage location associated with matching messages.
     pub storage: WmsStorageType,
+    /// Action performed by the modem when a matching message is received.
     pub receipt_action: WmsReceiptAction,
 }
 

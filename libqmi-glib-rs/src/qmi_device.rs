@@ -19,7 +19,7 @@ pub struct Device(NonNull<QmiDevice>);
 
 impl Drop for Device {
     fn drop(&mut self) {
-        tracing::debug!("QMI DEVICE is droped !");
+        tracing::trace!("QMI DEVICE is droped !");
         unsafe {
             g_object_unref(self.0.as_ptr().cast());
         }
