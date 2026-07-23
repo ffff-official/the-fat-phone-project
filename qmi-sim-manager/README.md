@@ -1,36 +1,51 @@
 # qmi-sim-manager
 
-A Rust library for sending and receiving SMS and MMS messages through QMI-compatible cellular modems.
+A Rust library for interacting with QMI-compatible cellular modems.
 
 The library provides an asynchronous API for:
 
-* Sending SMS messages.
-* Receiving SMS messages and delivery reports.
+* Provides voice calling capabilities.
+* Sending and receiving SMS messages.
+* Downloading and sending MMS messages.
+* Receiving SMS delivery reports.
 * Receiving MMS notifications (WAP Push).
-* Downloading MMS content.
-* Sending MMS messages.
+* Managing packet data connections.
+* Monitoring network registration and connectivity.
+* Managing UIM (SIM) cards and applications.
+* Placing, answering, and terminating voice calls.
+* Receiving asynchronous modem events, including SMS, MMS, and call status indications.
 
 ## Features
 
-* Async API based on Tokio and Glib.
-* SMS transmission.
-* SMS reception.
+* Native asynchronous Rust API based on `async`/`await`.
+* Async runtime powered by Tokio and GLib.
+* Direct communication with QMI-compatible modems.
+* No dependency on ModemManager or D-Bus.
+* SMS transmission and reception.
 * SMS delivery reports.
 * MMS notification (WAP Push) reception.
-* MMS download.
-* MMS submission.
+* MMS download and submission.
+* Voice call management.
+* Packet data connection management.
+* Network registration monitoring.
+* UIM (SIM) management.
+* Event-driven API based on `futures::Stream`.
+* Suitable for embedded, kiosk, and headless Linux systems.
 
 ## Alpha status
 
 This library is currently in an **alpha** stage. Its API and behavior may change before the first stable release.
 
-At the moment, MMS sending is limited to image attachments.
+At the moment:
+
+* MMS sending is limited to image attachments.
+* SIM/UIM features are still limited.
 
 ## Example
 
 ```rust,no_run
 use futures::stream::StreamExt;
-use qmi_sim_manager::SmClientHandle;
+use qmi_sim_manager::ClientHandle;
 use qmi_sim_manager::mms::{MmsContent, MmsContentType};
 
 use std::path::PathBuf;
@@ -38,7 +53,7 @@ use std::time::Duration;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut client_handle = SmClientHandle::init(PathBuf::from("/dev/cdc-wdm1"))?;
+    let mut client_handle = ClientHandle::init(PathBuf::from("/dev/cdc-wdm1"))?;
 
     let client = client_handle.client();
 
@@ -56,64 +71,52 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             &["33612402244"],
         )
         .await?;
-    println!("{:?}", response);
+
+    println!("{response:?}");
+
     client.stop_network().await?;
 
     let mut events = client_handle.event_stream()?;
     let handler = tokio::spawn(async move {
-        // Process incoming events, such as received SMS messages or ringing.
+        // Process incoming modem events.
         while let Some(event) = events.next().await {
             println!("{event:?}");
         }
     });
-    tokio::time::sleep(Duration::from_secs(60)).await; // Keep the client running for one minute before shutting it down.
+
+    tokio::time::sleep(Duration::from_secs(60)).await;
+
     client_handle.shutdown().await?;
     handler.await?;
+
     Ok(())
 }
 ```
 
-# Why qmi_sim_manager?
+## Why qmi-sim-manager?
 
-`qmi_sim_manager` is an asynchronous Rust library that communicates directly with
-QMI-compatible cellular modems. Unlike solutions based on ModemManager, it does
-not rely on D-Bus or an external daemon, giving applications full control over
-the modem lifecycle.
+`qmi-sim-manager` is an asynchronous Rust library that communicates directly with QMI-compatible cellular modems through **libqmi**.
 
-The library is designed for applications that need a simple, native Rust API
-for SMS, MMS, and mobile network management.
+Unlike solutions based on ModemManager, it does not rely on D-Bus or an external daemon, giving applications full control over the modem lifecycle.
 
-## Features
-
-* Native asynchronous Rust API based on `async`/`await`.
-* Direct communication with QMI-compatible modems.
-* No dependency on ModemManager or D-Bus.
-* SMS transmission and reception.
-* SMS delivery reports.
-* MMS notification (WAP Push) handling.
-* MMS download and decoding.
-* MMS submission with image attachments.
-* Event-driven API based on `futures::Stream`.
-* Explicit control over mobile data connections.
-* Suitable for embedded, kiosk, and headless Linux systems.
+The library is intended for applications requiring a native Rust API for messaging, mobile networking, voice calls, and SIM management while remaining lightweight and suitable for embedded systems.
 
 ## Why not ModemManager?
 
-ModemManager is an excellent choice for desktop environments and general modem
-management. It provides a high-level abstraction over many modem technologies
-and integrates well with the Linux desktop.
+ModemManager is an excellent choice for desktop environments and general modem management.
 
-`qmi_sim_manager` has a different goal: it is intended for applications that
-need direct, programmatic control over a QMI modem from Rust.
+`qmi-sim-manager` targets a different use case: applications that require direct programmatic access to QMI services from Rust.
 
 Compared to ModemManager, this library provides:
 
-* A native asynchronous Rust API instead of a D-Bus interface.
+* A native asynchronous Rust API.
 * Direct communication with the modem through libqmi.
 * No external daemon required at runtime.
 * Fine-grained control over modem operations.
-* Built-in support for MMS sending, downloading, and decoding.
-* A simple event stream for incoming SMS, MMS notifications, and modem events.
+* Built-in MMS support.
+* Integrated voice call support.
+* Event-driven programming through `futures::Stream`.
+* Explicit control over packet data connections.
 
 # Linux setup
 
@@ -244,13 +247,15 @@ target/release/my_application cap_net_admin=ep
 
 ## Future development
 
-This library is under active development. Future releases are expected to add support for additional modem features, including:
+This library is under active development.
 
-* Voice calls
-* SIM card management
-* Mobile network management
-* GPS
-* Additional QMI services
+Future releases are expected to expand support for additional modem features, including:
+
+* Extended SIM/UIM management.
+* GPS and positioning services.
+* Additional QMI services.
+* Improved MMS capabilities.
+* Additional voice features.
 
 ## License
 
