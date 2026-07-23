@@ -502,7 +502,52 @@ impl Client {
     ///
     /// # Returns
     ///
-    /// Returns the decoded MMS content parts.
+    /// Returns the decoded MMS content parts.\
+    /// ```no_run
+    /// # use futures::stream::StreamExt;
+    /// # use qmi_sim_manager::ClientHandle;
+    /// use qmi_sim_manager::{Error, Event};
+    ///
+    /// # use std::path::PathBuf;
+    /// # use std::time::Duration;
+    /// #
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// #    let mut client_handle = ClientHandle::init(PathBuf::from("/dev/cdc-wdm1"))?;
+    /// #
+    /// #    let client = client_handle.client();
+    /// #
+    /// // Create the event stream. Only one event stream can exist at a time.
+    /// let mut events = client_handle.event_stream()?;
+    ///
+    /// // Spawn a task that continuously processes modem events.
+    /// let handle = tokio::spawn(async move {
+    ///     while let Some(event) = events.next().await {
+    ///         // A WAP Push notification announces that an MMS is available.
+    ///         if let Event::SmsWapPush(wap_push) = &event {
+    ///             // A packet data connection is required to download the MMS.
+    ///             client.start_network("free").await?;
+    ///
+    ///             let output = client
+    ///                 .get_mms(wap_push.content_location.clone())
+    ///                 .await?;
+    ///
+    ///              // Display the MIME type of each MMS part.
+    ///             for content in output {
+    ///                 dbg!(&content.content_type);
+    ///             }
+    ///             client.stop_network().await?;
+    ///         }
+    ///         println!("{event:?}");
+    ///     }
+    ///     Ok::<(), Error>(())
+    /// });
+    /// #    tokio::time::sleep(Duration::from_secs(60)).await;
+    /// #    client_handle.shutdown().await?;
+    /// #    handle.await??;
+    /// #    Ok(())
+    /// # }
+    /// ```
     pub async fn get_mms(
         &self,
         content_location: impl AsRef<str>,

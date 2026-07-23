@@ -443,6 +443,7 @@ pub enum WspWellKnownContentType {
     ImageGif = 0x1D,
     /// `image/jpeg`
     ImageJpeg = 0x1E,
+    /// `image/png`
     ImagePng = 0x20,
     ApplicationXml = 0x27,
     TextXml = 0x28,

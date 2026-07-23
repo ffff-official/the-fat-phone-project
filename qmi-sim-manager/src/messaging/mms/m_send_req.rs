@@ -107,9 +107,10 @@ pub(crate) fn new(content: &[MmsContent], from: Option<&str>, to: &[&str]) -> Sm
                 "\"<smil>".to_string(),
                 "smil.xml".to_string(),
             ),
-            _ => Err(Error::Other(
-                format!("content_type {:?} is not implemented", content_type),
-            ))?,
+            _ => Err(Error::Other(format!(
+                "content_type {:?} is not implemented",
+                content_type
+            )))?,
         };
 
         let content_type_len = match &content_type {
@@ -287,9 +288,10 @@ fn new_smil_boilerplate(content: &[MmsContent]) -> SmResult<String> {
                 img.attributes.insert("region".into(), "Image".into());
                 par.children.push(XMLNode::Element(img));
             }
-            _ => Err(Error::Other(
-                format!("content_type {:?} is not implemented", media.content_type),
-            ))?,
+            _ => Err(Error::Other(format!(
+                "content_type {:?} is not implemented",
+                media.content_type
+            )))?,
         }
         body.children.push(XMLNode::Element(par));
     }
