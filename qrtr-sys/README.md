@@ -1,3 +1,6 @@
+[![crates.io](https://img.shields.io/crates/v/qrtr-sys.svg)](https://crates.io/crates/qrtr-sys)
+[![Docs.rs](https://docs.rs/qrtr-sys/badge.svg)](https://docs.rs/qrtr-sys)
+[![License](https://img.shields.io/crates/l/qrtr-sys.svg)](https://crates.io/crates/qrtr-sys)
 # qrtr-sys
 
 Raw FFI bindings for **libqrtr-glib**, the GLib-based API for the Qualcomm Router (QRTR) IPC bus.

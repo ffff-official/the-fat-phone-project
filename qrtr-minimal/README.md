@@ -1,3 +1,6 @@
+[![crates.io](https://img.shields.io/crates/v/qrtr-minimal.svg)](https://crates.io/crates/qrtr-minimal)
+[![Docs.rs](https://docs.rs/qrtr-minimal/badge.svg)](https://docs.rs/qrtr-minimal)
+[![License](https://img.shields.io/crates/l/qrtr-minimal.svg)](https://crates.io/crates/qrtr-minimal)
 # qrtr
 
 Safe Rust bindings for **QRTR** generated with **gir**.

@@ -1,3 +1,6 @@
+[![crates.io](https://img.shields.io/crates/v/libqmi-glib-sys.svg)](https://crates.io/crates/libqmi-glib-sys)
+[![Docs.rs](https://docs.rs/libqmi-glib-sys/badge.svg)](https://docs.rs/libqmi-glib-sys)
+[![License](https://img.shields.io/crates/l/libqmi-glib-sys.svg)](https://crates.io/crates/libqmi-glib-sys)
 # libqmi-glib-sys
 
 Raw FFI bindings for **libqmi-glib**, the GLib-based library for communicating with Qualcomm-based modems using the Qualcomm MSM Interface (QMI) protocol.

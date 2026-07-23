@@ -1,3 +1,6 @@
+[![crates.io](https://img.shields.io/crates/v/glib-boilerplates.svg)](https://crates.io/crates/glib-boilerplates)
+[![Docs.rs](https://docs.rs/glib-boilerplates/badge.svg)](https://docs.rs/glib-boilerplates)
+[![License](https://img.shields.io/crates/l/glib-boilerplates.svg)](https://crates.io/crates/glib-boilerplates)
 # glib-boilerplates
 
 **Procedural macros for generating conversion boilerplate between safe Rust types and GLib FFI types generated from GIR.**

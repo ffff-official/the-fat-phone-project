@@ -1,3 +1,6 @@
+[![crates.io](https://img.shields.io/crates/v/libqmi-glib-types-rs.svg)](https://crates.io/crates/libqmi-glib-types-rs)
+[![Docs.rs](https://docs.rs/libqmi-glib-types-rs/badge.svg)](https://docs.rs/libqmi-glib-types-rs)
+[![License](https://img.shields.io/crates/l/libqmi-glib-types-rs.svg)](https://crates.io/crates/libqmi-glib-types-rs)
 # libqmi-glib-types-rs
 
 Rust definitions of the **enums** and **flags** from **libqmi-glib**.
