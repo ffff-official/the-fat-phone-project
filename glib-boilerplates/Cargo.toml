@@ -1,6 +1,6 @@
 [package]
 name = "glib-boilerplates"
-version = "0.0.2"
+version = "0.1.0"
 edition = "2024"
 authors = ["bmickael <bmickael@proton.me>"]
 repository = "https://gitlab.com/mordaklavache/the-fat-phone-project"

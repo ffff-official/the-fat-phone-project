@@ -14,13 +14,13 @@ resolver = "3"
 
 [workspace.dependencies]
 gsm7-rs = { path = "gsm7-rs", version = "0.4.0" }
-glib-boilerplates = { path = "glib-boilerplates", version = "0.0.2" }
-libqmi-glib-sys = { path = "libqmi-glib-sys", features = ["v1_36"], version = "0.0.5" }
+glib-boilerplates = { path = "glib-boilerplates", version = "0.1.0" }
+libqmi-glib-sys = { path = "libqmi-glib-sys", features = ["v1_36"], version = "0.1.0" }
 libqmi-glib-types-rs = { path = "libqmi-glib-types-rs", features = ["v1_36"], version = "0.1.2" }
-libqmi-glib-rs = { path = "libqmi-glib-rs", version = "0.0.9" }
+libqmi-glib-rs = { path = "libqmi-glib-rs", version = "0.1.0" }
 qrtr-sys = { path = "qrtr-sys", version = "0.1.1" }
 qrtr-minimal = { path = "qrtr-minimal", version = "0.1.1" }
-qmi-sim-manager = { path = "qmi-sim-manager", version = "0.0.5" }
+qmi-sim-manager = { path = "qmi-sim-manager", version = "0.1.0" }
 
 glib-sys = "0.22"
 gobject-sys = "0.22"
