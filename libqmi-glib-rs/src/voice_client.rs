@@ -5,17 +5,17 @@ use crate::sys::*;
 use futures::channel::oneshot;
 use gio_sys::GAsyncResult;
 use glib_sys::{GArray, GFALSE};
-use gobject_sys::{GClosure, GObject, g_object_ref, g_object_unref};
+use gobject_sys::{GClosure, GObject};
 use libqmi_glib_types_rs::glib::translate::{FromGlib, IntoGlib, from_glib_none};
 use libqmi_glib_types_rs::{
-    DeviceReleaseClientFlags, IndicationVoiceAllCallStatusOutputCallInformationCall, Service,
-    VoicePresentation,
+    IndicationVoiceAllCallStatusOutputCallInformationCall, VoicePresentation,
 };
 
 use std::cell::RefCell;
 use std::ffi::{CString, c_void};
 use std::ptr::NonNull;
 use std::ptr::null_mut;
+use std::rc::Rc;
 
 /// A client for interacting with the Voice service of a QMI device.
 ///
@@ -40,28 +40,12 @@ use std::ptr::null_mut;
 pub struct VoiceClient {
     client: NonNull<QmiClientVoice>,
     device: Device,
+    data: Rc<RefCell<Option<()>>>,
 }
 
-impl Drop for VoiceClient {
-    fn drop(&mut self) {
-        tracing::trace!("VOICE CLIENT is droped !");
-        unsafe {
-            g_object_unref(self.client.as_ptr().cast());
-        }
-    }
-}
+client_drop_impl!(VoiceClient);
 
-impl Clone for VoiceClient {
-    fn clone(&self) -> Self {
-        unsafe {
-            g_object_ref(self.client.as_ptr().cast());
-        }
-        Self {
-            client: self.client,
-            device: self.device.clone(),
-        }
-    }
-}
+client_clone_impl!(VoiceClient);
 
 type CallInformation = IndicationVoiceAllCallStatusOutputCallInformationCall;
 type CallInfoCallback = Box<dyn FnMut(Vec<VoiceCall>)>;
@@ -98,54 +82,13 @@ impl VoiceClient {
         self.device.clone()
     }
 
-    /// Asynchronously allocates a new [`VoiceClient`].
-    pub async fn new(device: &Device) -> QmiResult<VoiceClient> {
-        let (tx, rx) = oneshot::channel::<QmiResult<NonNull<QmiClientVoice>>>();
+    new_client_impl!(
+        VoiceClient,
+        QmiClientVoice,
+        libqmi_glib_types_rs::Service::Voice
+    );
 
-        unsafe {
-            qmi_device_allocate_client(
-                device.as_ptr(),
-                Service::Voice.into_glib(),
-                QMI_CID_NONE as _,
-                OPERATION_TIMEOUT,
-                null_mut(),
-                Some(allocate_client_cb),
-                Box::into_raw(Box::new(tx)).cast(),
-            )
-        };
-        match rx.await.map_err(|_| QmiError::cb_droped())? {
-            Ok(client) => Ok(Self {
-                device: device.clone(),
-                client,
-            }),
-            Err(e) => Err(e),
-        }
-    }
-
-    /// Asynchronously releases the [`VoiceClient`] from the [`Device`].
-    pub async fn close(self) -> QmiResult<()> {
-        let ref_count = unsafe { *(self.client.as_ptr().cast::<GObject>()) }.ref_count;
-        if ref_count != 2 {
-            Err(QmiError::new(
-                format!("can't close ref count = {}", ref_count),
-                "voice close",
-            ))?;
-        }
-        let (tx, rx) = oneshot::channel::<QmiResult<()>>();
-
-        unsafe {
-            qmi_device_release_client(
-                self.device.as_ptr(),
-                self.client.as_ptr().cast(),
-                DeviceReleaseClientFlags::RELEASE_CID.into_glib(),
-                OPERATION_TIMEOUT,
-                null_mut(),
-                Some(release_client_cb),
-                Box::into_raw(Box::new(tx)).cast(),
-            );
-        }
-        rx.await.map_err(|_| QmiError::cb_droped())?
-    }
+    close_client_impl!("voice");
 
     /// Asynchronously sends a Set All Call Status request to the device.
     ///

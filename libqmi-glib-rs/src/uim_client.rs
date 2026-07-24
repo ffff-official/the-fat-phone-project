@@ -8,18 +8,18 @@ use glib_sys::GFALSE;
 use glib_sys::g_array_new;
 use glib_sys::g_array_unref;
 use glib_sys::guint8;
-use gobject_sys::{GObject, g_object_ref, g_object_unref};
-use libqmi_glib_types_rs::DeviceReleaseClientFlags;
+use gobject_sys::GObject;
 use libqmi_glib_types_rs::MessageUimGetCardStatusOutputCardStatusCardsElement;
-use libqmi_glib_types_rs::Service;
 use libqmi_glib_types_rs::UimPinId;
 use libqmi_glib_types_rs::UimSessionType;
 use libqmi_glib_types_rs::glib::translate::IntoGlib;
 
+use std::cell::RefCell;
 use std::ffi::CString;
 use std::ffi::c_void;
 use std::ptr::NonNull;
 use std::ptr::null_mut;
+use std::rc::Rc;
 
 type CardStatusOutputElem = MessageUimGetCardStatusOutputCardStatusCardsElement;
 type QmiCardStatusOutputElem = QmiMessageUimGetCardStatusOutputCardStatusCardsElement;
@@ -50,28 +50,12 @@ type QmiCardStatusOutputElem = QmiMessageUimGetCardStatusOutputCardStatusCardsEl
 pub struct UimClient {
     client: NonNull<QmiClientUim>,
     device: Device,
+    data: Rc<RefCell<Option<()>>>,
 }
 
-impl Drop for UimClient {
-    fn drop(&mut self) {
-        tracing::trace!("UIM CLIENT is droped !");
-        unsafe {
-            g_object_unref(self.client.as_ptr().cast());
-        }
-    }
-}
+client_drop_impl!(UimClient);
 
-impl Clone for UimClient {
-    fn clone(&self) -> Self {
-        unsafe {
-            g_object_ref(self.client.as_ptr().cast());
-        }
-        Self {
-            client: self.client,
-            device: self.device.clone(),
-        }
-    }
-}
+client_clone_impl!(UimClient);
 
 impl UimClient {
     #[allow(dead_code)]
@@ -79,54 +63,9 @@ impl UimClient {
         self.device.clone()
     }
 
-    /// Asynchronously allocates a new [`UimClient`].
-    pub async fn new(device: &Device) -> QmiResult<UimClient> {
-        let (tx, rx) = oneshot::channel::<QmiResult<NonNull<QmiClientUim>>>();
+    new_client_impl!(UimClient, QmiClientUim, libqmi_glib_types_rs::Service::Uim);
 
-        unsafe {
-            qmi_device_allocate_client(
-                device.as_ptr(),
-                Service::Uim.into_glib(),
-                QMI_CID_NONE as _,
-                OPERATION_TIMEOUT,
-                null_mut(),
-                Some(allocate_client_cb),
-                Box::into_raw(Box::new(tx)).cast(),
-            )
-        };
-        match rx.await.map_err(|_| QmiError::cb_droped())? {
-            Ok(client) => Ok(Self {
-                device: device.clone(),
-                client,
-            }),
-            Err(e) => Err(e),
-        }
-    }
-
-    /// Asynchronously releases the [`UimClient`] from the [`Device`].
-    pub async fn close(self) -> QmiResult<()> {
-        let ref_count = unsafe { *(self.client.as_ptr().cast::<GObject>()) }.ref_count;
-        if ref_count != 2 {
-            Err(QmiError::new(
-                format!("can't close ref count = {}", ref_count),
-                "uim close",
-            ))?;
-        }
-        let (tx, rx) = oneshot::channel::<QmiResult<()>>();
-
-        unsafe {
-            qmi_device_release_client(
-                self.device.as_ptr(),
-                self.client.as_ptr() as _,
-                DeviceReleaseClientFlags::RELEASE_CID.into_glib(),
-                OPERATION_TIMEOUT,
-                null_mut(),
-                Some(release_client_cb),
-                Box::into_raw(Box::new(tx)).cast(),
-            );
-        }
-        rx.await.map_err(|_| QmiError::cb_droped())?
-    }
+    close_client_impl!("uim");
 
     /// Retrieves the current status of all UIM cards.
     ///

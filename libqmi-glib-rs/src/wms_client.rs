@@ -6,16 +6,16 @@ use gio_sys::GAsyncResult;
 use glib_sys::{
     GArray, GError, GFALSE, g_array_append_vals, g_array_sized_new, g_array_unref, guint16, guint32,
 };
-use gobject_sys::{GClosure, GObject, g_object_ref, g_object_unref};
+use gobject_sys::{GClosure, GObject};
 use libqmi_glib_types_rs::MessageWmsGetRoutesOutputRouteListElement;
 use libqmi_glib_types_rs::glib::translate::FromGlib;
 use libqmi_glib_types_rs::glib::translate::IntoGlib;
-use libqmi_glib_types_rs::{
-    DeviceReleaseClientFlags, Service, WmsGsmUmtsRpCause, WmsGsmUmtsTpCause, WmsMessageFormat,
-};
+use libqmi_glib_types_rs::{WmsGsmUmtsRpCause, WmsGsmUmtsTpCause, WmsMessageFormat};
 
+use std::cell::RefCell;
 use std::ffi::c_void;
 use std::ptr::{NonNull, null_mut};
+use std::rc::Rc;
 
 type Route = MessageWmsGetRoutesOutputRouteListElement;
 type QmiRoute = QmiMessageWmsGetRoutesOutputRouteListElement;
@@ -26,28 +26,12 @@ type EventReportCallback = Box<dyn FnMut(&[u8], WmsMessageFormat)>;
 pub struct WmsClient {
     client: NonNull<QmiClientWms>,
     device: Device,
+    data: Rc<RefCell<Option<()>>>,
 }
 
-impl Drop for WmsClient {
-    fn drop(&mut self) {
-        tracing::trace!("WMS CLIENT is droped !");
-        unsafe {
-            g_object_unref(self.client.as_ptr().cast());
-        }
-    }
-}
+client_drop_impl!(WmsClient);
 
-impl Clone for WmsClient {
-    fn clone(&self) -> Self {
-        unsafe {
-            g_object_ref(self.client.as_ptr().cast());
-        }
-        Self {
-            client: self.client,
-            device: self.device.clone(),
-        }
-    }
-}
+client_clone_impl!(WmsClient);
 
 impl WmsClient {
     #[allow(dead_code)]
@@ -55,54 +39,9 @@ impl WmsClient {
         self.device.clone()
     }
 
-    /// Asynchronously allocates a new [`WmsClient`].
-    pub async fn new(device: &Device) -> QmiResult<WmsClient> {
-        let (tx, rx) = oneshot::channel::<QmiResult<NonNull<QmiClientWms>>>();
+    new_client_impl!(WmsClient, QmiClientWms, libqmi_glib_types_rs::Service::Wms);
 
-        unsafe {
-            qmi_device_allocate_client(
-                device.as_ptr().cast(),
-                Service::Wms.into_glib(),
-                QMI_CID_NONE as _,
-                OPERATION_TIMEOUT,
-                null_mut(),
-                Some(allocate_client_cb),
-                Box::into_raw(Box::new(tx)).cast(),
-            )
-        };
-        match rx.await.map_err(|_| QmiError::cb_droped())? {
-            Ok(client) => Ok(Self {
-                device: device.clone(),
-                client,
-            }),
-            Err(e) => Err(e),
-        }
-    }
-
-    /// Asynchronously releases the [`WmsClient`] from the [`Device`].
-    pub async fn close(self) -> QmiResult<()> {
-        let ref_count = unsafe { *(self.client.as_ptr().cast::<GObject>()) }.ref_count;
-        if ref_count != 2 {
-            Err(QmiError::new(
-                format!("can't close ref count = {}", ref_count),
-                "wms close",
-            ))?;
-        }
-        let (tx, rx) = oneshot::channel::<QmiResult<()>>();
-
-        unsafe {
-            qmi_device_release_client(
-                self.device.as_ptr(),
-                self.client.as_ptr().cast(),
-                DeviceReleaseClientFlags::RELEASE_CID.into_glib(),
-                OPERATION_TIMEOUT,
-                null_mut(),
-                Some(release_client_cb),
-                Box::into_raw(Box::new(tx)).cast(),
-            );
-        }
-        rx.await.map_err(|_| QmiError::cb_droped())?
-    }
+    close_client_impl!("wms");
 
     /// Asynchronously sends a Set Event Report request to the device.
     /// The sender parameter is the communication channel through which newly received SMS PDUs are sent.

@@ -11,11 +11,11 @@
 //! - Managing UIM (SIM) cards and applications.
 //! - Receiving asynchronous modem events, including SMS, MMS, and call status indications.
 //!
-//! # Alpha status
+//! # Beta status
 //!
-//! This library is currently in an alpha stage. Its API and behavior may change before the first stable release.
+//! The public API is considered stable and is not expected to undergo significant changes before the first stable release.
 //!
-//! At the moment, MMS sending is limited to image attachments and SIM features are limited.
+//! The library is still under active development, and some features are incomplete and can receive improvements based on feedback.
 //!
 //! # Basics
 //!

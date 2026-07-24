@@ -4,13 +4,10 @@ use crate::sys::*;
 use futures::channel::oneshot;
 use gio_sys::GAsyncResult;
 use glib_sys::{GError, GFALSE, gboolean, guint32};
-use gobject_sys::{GObject, g_object_ref, g_object_unref};
+use gobject_sys::GObject;
 use libqmi_glib_types_rs::glib::translate::FromGlib;
 use libqmi_glib_types_rs::glib::translate::IntoGlib;
-use libqmi_glib_types_rs::{
-    DeviceReleaseClientFlags, Service, WdsConnectionStatus, WdsIpFamily, WdsPdpType,
-    WdsRequestedSettings,
-};
+use libqmi_glib_types_rs::{WdsConnectionStatus, WdsIpFamily, WdsPdpType, WdsRequestedSettings};
 
 use std::cell::RefCell;
 use std::ffi::{CString, c_void};
@@ -24,30 +21,17 @@ use std::rc::Rc;
 pub struct WdsClient {
     client: NonNull<QmiClientWds>,
     device: Device,
-    pdh: Rc<RefCell<Option<u32>>>, // session identifier
+    data: Rc<RefCell<Option<Data>>>,
 }
 
-impl Drop for WdsClient {
-    fn drop(&mut self) {
-        tracing::trace!("WDS CLIENT is droped !");
-        unsafe {
-            g_object_unref(self.client.as_ptr().cast());
-        }
-    }
+#[derive(Debug, Clone, Copy)]
+pub struct Data {
+    pdh: u32, // session identifier
 }
 
-impl Clone for WdsClient {
-    fn clone(&self) -> Self {
-        unsafe {
-            g_object_ref(self.client.as_ptr().cast());
-        }
-        Self {
-            client: self.client,
-            device: self.device.clone(),
-            pdh: self.pdh.clone(),
-        }
-    }
-}
+client_drop_impl!(WdsClient);
+
+client_clone_impl!(WdsClient);
 
 impl WdsClient {
     #[allow(dead_code)]
@@ -55,55 +39,9 @@ impl WdsClient {
         self.device.clone()
     }
 
-    /// Asynchronously allocates a new [`WdsClient`].
-    pub async fn new(device: &Device) -> QmiResult<WdsClient> {
-        let (tx, rx) = oneshot::channel::<QmiResult<NonNull<QmiClientWds>>>();
+    new_client_impl!(WdsClient, QmiClientWds, libqmi_glib_types_rs::Service::Wds);
 
-        unsafe {
-            qmi_device_allocate_client(
-                device.as_ptr(),
-                Service::Wds.into_glib(),
-                QMI_CID_NONE as _,
-                OPERATION_TIMEOUT,
-                null_mut(),
-                Some(allocate_client_cb),
-                Box::into_raw(Box::new(tx)).cast(),
-            )
-        };
-        match rx.await.map_err(|_| QmiError::cb_droped())? {
-            Ok(client) => Ok(Self {
-                device: device.clone(),
-                client,
-                pdh: Rc::new(RefCell::new(None)),
-            }),
-            Err(e) => Err(e),
-        }
-    }
-
-    /// Asynchronously releases the [`WdsClient`] from the [`Device`].
-    pub async fn close(self) -> QmiResult<()> {
-        let ref_count = unsafe { *(self.client.as_ptr().cast::<GObject>()) }.ref_count;
-        if ref_count != 2 {
-            Err(QmiError::new(
-                format!("can't close ref count = {}", ref_count),
-                "wds close",
-            ))?;
-        }
-        let (tx, rx) = oneshot::channel::<QmiResult<()>>();
-
-        unsafe {
-            qmi_device_release_client(
-                self.device.as_ptr(),
-                self.client.as_ptr().cast(),
-                DeviceReleaseClientFlags::RELEASE_CID.into_glib(),
-                OPERATION_TIMEOUT,
-                null_mut(),
-                Some(release_client_cb),
-                Box::into_raw(Box::new(tx)).cast(),
-            );
-        }
-        rx.await.map_err(|_| QmiError::cb_droped())?
-    }
+    close_client_impl!("wds");
 
     /// Asynchronously sends a Start Network request to the device.
     pub async fn start_network(&mut self, apn: &str) -> QmiResult<()> {
@@ -145,7 +83,7 @@ impl WdsClient {
                 }
                 match rx.await {
                     Ok(pdh) => {
-                        *self.pdh.borrow_mut() = Some(pdh?);
+                        *self.data.borrow_mut() = Some(Data { pdh: pdh? });
                         Ok(())
                     }
                     Err(_e) => Err(QmiError::cb_droped()),
@@ -156,7 +94,7 @@ impl WdsClient {
 
     /// Asynchronously sends a Stop Network request to the device.
     pub async fn stop_network(&mut self) -> QmiResult<()> {
-        let pdh = self.pdh.borrow().ok_or_else(|| QmiError {
+        let data = self.data.borrow().ok_or_else(|| QmiError {
             message: "Got not PDH : Network seems to be already stoped !".into(),
             context: "stop network",
         })?;
@@ -165,7 +103,7 @@ impl WdsClient {
         let mut error: *mut GError = null_mut();
 
         let ret = unsafe {
-            qmi_message_wds_stop_network_input_set_packet_data_handle(input, pdh, &mut error)
+            qmi_message_wds_stop_network_input_set_packet_data_handle(input, data.pdh, &mut error)
         };
         if ret == GFALSE {
             unsafe {
@@ -188,7 +126,7 @@ impl WdsClient {
                 qmi_message_wds_stop_network_input_unref(input);
             }
             ret.map_err(|_| QmiError::cb_droped())?.map(|_| {
-                *self.pdh.borrow_mut() = None;
+                *self.data.borrow_mut() = None;
             })
         }
     }
