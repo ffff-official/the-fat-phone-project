@@ -1,6 +1,6 @@
 [package]
 name = "libqmi-glib-rs"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 authors = ["bmickael <bmickael@proton.me>"]
 repository = "https://gitlab.com/mordaklavache/the-fat-phone-project"
