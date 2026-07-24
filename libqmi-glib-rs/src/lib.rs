@@ -45,6 +45,57 @@
 //! ```
 #![allow(unsafe_op_in_unsafe_fn)] // Warnings on unsafe_op_in_unsafe_fn is a shitty idea for a crate of this kind.
 
+macro_rules! allocate_client_callback {
+    (
+        $callback:ident,
+        $client_type:ty,
+        $context:literal
+    ) => {
+        unsafe extern "C" fn $callback(
+            device: *mut GObject,
+            res: *mut GAsyncResult,
+            user_data: *mut c_void,
+        ) {
+            let sender = Box::from_raw(
+                user_data.cast::<oneshot::Sender<QmiResult<NonNull<$client_type>>>>(),
+            );
+
+            let mut error: *mut GError = null_mut();
+
+            let client = qmi_device_allocate_client_finish(device.cast(), res, &mut error);
+
+            let output =
+                NonNull::new(client.cast::<$client_type>()).ok_or_else(|| (error, $context).into());
+
+            drop(sender.send(output).inspect_err(cannot_send));
+        }
+    };
+}
+
+macro_rules! release_client_callback {
+    (
+        $callback:ident,
+        $context:literal
+    ) => {
+        unsafe extern "C" fn $callback(
+            device: *mut GObject,
+            res: *mut GAsyncResult,
+            user_data: *mut c_void,
+        ) {
+            let sender = Box::from_raw(user_data.cast::<oneshot::Sender<QmiResult<()>>>());
+            let mut error: *mut GError = null_mut();
+
+            let res = qmi_device_release_client_finish(device.cast(), res, &mut error);
+
+            let output = match res {
+                GFALSE => Err((error, $context).into()),
+                _ => Ok(()),
+            };
+            drop(sender.send(output).inspect_err(cannot_send));
+        }
+    };
+}
+
 pub mod dms_client;
 pub mod nas_client;
 pub mod pds_client;

@@ -98,37 +98,6 @@ impl NasClient {
     }
 }
 
-unsafe extern "C" fn allocate_client_cb(
-    device: *mut GObject,
-    res: *mut GAsyncResult,
-    user_data: *mut c_void,
-) {
-    let sender =
-        Box::from_raw(user_data.cast::<oneshot::Sender<QmiResult<NonNull<QmiClientNas>>>>());
-    let mut error: *mut GError = null_mut();
+allocate_client_callback!(allocate_client_cb, QmiClientNas, "allocate NAS client");
 
-    let client = qmi_device_allocate_client_finish(device.cast(), res, &mut error);
-
-    let output = match NonNull::new(client.cast()) {
-        None => Err((error, "new nas client").into()),
-        Some(client) => Ok(client),
-    };
-    drop(sender.send(output).inspect_err(cannot_send));
-}
-
-unsafe extern "C" fn release_client_cb(
-    device: *mut GObject,
-    res: *mut GAsyncResult,
-    user_data: *mut c_void,
-) {
-    let sender = Box::from_raw(user_data.cast::<oneshot::Sender<QmiResult<()>>>());
-    let mut error: *mut GError = null_mut();
-
-    let ret = qmi_device_release_client_finish(device.cast(), res, &mut error);
-
-    let output = match ret {
-        GFALSE => Err((error, "release nas client").into()),
-        _ => Ok(()),
-    };
-    drop(sender.send(output).inspect_err(cannot_send));
-}
+release_client_callback!(release_client_cb, "release NAS client");

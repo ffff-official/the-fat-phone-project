@@ -98,37 +98,6 @@ impl PdsClient {
     }
 }
 
-unsafe extern "C" fn allocate_client_cb(
-    device: *mut GObject,
-    res: *mut GAsyncResult,
-    user_data: *mut c_void,
-) {
-    let sender =
-        Box::from_raw(user_data.cast::<oneshot::Sender<QmiResult<NonNull<QmiClientPds>>>>());
-    let mut error: *mut GError = null_mut();
+allocate_client_callback!(allocate_client_cb, QmiClientPds, "allocate PDS client");
 
-    let client = qmi_device_allocate_client_finish(device.cast::<QmiDevice>(), res, &mut error);
-
-    let output = match NonNull::new(client.cast()) {
-        None => Err((error, "new pds client").into()),
-        Some(client) => Ok(client),
-    };
-    drop(sender.send(output).inspect_err(cannot_send));
-}
-
-unsafe extern "C" fn release_client_cb(
-    device: *mut GObject,
-    res: *mut GAsyncResult,
-    user_data: *mut c_void,
-) {
-    let sender = Box::from_raw(user_data.cast::<oneshot::Sender<QmiResult<()>>>());
-    let mut error: *mut GError = null_mut();
-
-    let ret = qmi_device_release_client_finish(device.cast::<QmiDevice>(), res, &mut error);
-
-    let output = match ret {
-        GFALSE => Err((error, "release pds client").into()),
-        _ => Ok(()),
-    };
-    drop(sender.send(output).inspect_err(cannot_send));
-}
+release_client_callback!(release_client_cb, "release PDS client");

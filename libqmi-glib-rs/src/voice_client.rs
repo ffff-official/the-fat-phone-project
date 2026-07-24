@@ -343,40 +343,9 @@ impl VoiceClient {
     }
 }
 
-unsafe extern "C" fn allocate_client_cb(
-    device: *mut GObject,
-    res: *mut GAsyncResult,
-    user_data: *mut c_void,
-) {
-    let sender =
-        Box::from_raw(user_data.cast::<oneshot::Sender<QmiResult<NonNull<QmiClientVoice>>>>());
-    let mut error: *mut GError = null_mut();
+allocate_client_callback!(allocate_client_cb, QmiClientVoice, "allocate VOICE client");
 
-    let client = qmi_device_allocate_client_finish(device.cast(), res, &mut error);
-
-    let output = match NonNull::new(client.cast()) {
-        None => Err((error, "new voice client").into()),
-        Some(client) => Ok(client),
-    };
-    drop(sender.send(output).inspect_err(cannot_send));
-}
-
-unsafe extern "C" fn release_client_cb(
-    device: *mut GObject,
-    res: *mut GAsyncResult,
-    user_data: *mut c_void,
-) {
-    let sender = Box::from_raw(user_data.cast::<oneshot::Sender<QmiResult<()>>>());
-    let mut error: *mut GError = null_mut();
-
-    let ret = qmi_device_release_client_finish(device.cast(), res, &mut error);
-
-    let output = match ret {
-        GFALSE => Err((error, "release voice client").into()),
-        _ => Ok(()),
-    };
-    drop(sender.send(output).inspect_err(cannot_send));
-}
+release_client_callback!(release_client_cb, "release VOICE client");
 
 // IMPORTANT: Quick-and-dirty workaround to suppress duplicate incoming call events.
 //            The modem occasionally reports the same incoming call twice.
@@ -508,129 +477,85 @@ unsafe extern "C" fn destroy_all_call_status_data(data: *mut c_void, _closure: *
     drop(Box::from_raw(data.cast::<CallInfoCallback>()));
 }
 
-unsafe extern "C" fn dial_call_cb(
-    client: *mut GObject,
-    res: *mut GAsyncResult,
-    user_data: *mut c_void,
-) {
-    let sender = Box::from_raw(user_data.cast::<oneshot::Sender<QmiResult<u8>>>());
-    let mut error: *mut GError = null_mut();
+macro_rules! voice_call_callback {
+    (
+        $callback:ident,
+        finish = $finish:path,
+        get_result = $get_result:path,
+        get_call_id = $get_call_id:path,
+        unref = $unref:path,
+        context = $context:literal
+    ) => {
+        unsafe extern "C" fn $callback(
+            client: *mut GObject,
+            res: *mut GAsyncResult,
+            user_data: *mut c_void,
+        ) {
+            let sender = Box::from_raw(user_data.cast::<oneshot::Sender<QmiResult<u8>>>());
 
-    let dial_output = qmi_client_voice_dial_call_finish(client.cast(), res, &mut error);
-    if dial_output.is_null() {
-        let _drop = sender
-            .send(Err((error, "dial_call cb finish").into()))
-            .inspect_err(cannot_send);
-        return;
-    }
-    let output = if qmi_message_voice_dial_call_output_get_result(dial_output, &mut error) == GFALSE
-    {
-        Err((error, "dial_call cb get_result").into())
-    } else {
-        let mut call_id: u8 = 0;
-        let ret =
-            qmi_message_voice_dial_call_output_get_call_id(dial_output, &mut call_id, &mut error);
-        match ret {
-            GFALSE => Err((error, "dial_call cb get_call_id").into()),
-            _ => Ok(call_id),
-        }
-    };
-    qmi_message_voice_dial_call_output_unref(dial_output);
-    drop(sender.send(output).inspect_err(cannot_send));
-}
+            let mut error: *mut GError = null_mut();
 
-unsafe extern "C" fn answer_call_cb(
-    client: *mut GObject,
-    res: *mut GAsyncResult,
-    user_data: *mut c_void,
-) {
-    let sender = Box::from_raw(user_data.cast::<oneshot::Sender<QmiResult<u8>>>());
-    let mut error: *mut GError = null_mut();
+            let output_ptr = $finish(client.cast(), res, &mut error);
 
-    let answer_output = qmi_client_voice_answer_call_finish(client.cast(), res, &mut error);
-    if answer_output.is_null() {
-        let _drop = sender
-            .send(Err((error, "answer_call cb finish").into()))
-            .inspect_err(cannot_send);
-        return;
-    }
-    let output =
-        if qmi_message_voice_answer_call_output_get_result(answer_output, &mut error) == GFALSE {
-            Err((error, "answer_call cb get_result").into())
-        } else {
-            let mut call_id: u8 = 0;
-            let ret = qmi_message_voice_answer_call_output_get_call_id(
-                answer_output,
-                &mut call_id,
-                &mut error,
-            );
-            match ret {
-                GFALSE => Err((error, "answer_call cb get_call_id").into()),
-                _ => Ok(call_id),
+            if output_ptr.is_null() {
+                drop(
+                    sender
+                        .send(Err((error, concat!($context, " finish")).into()))
+                        .inspect_err(cannot_send),
+                );
+                return;
             }
-        };
-    qmi_message_voice_answer_call_output_unref(answer_output);
-    drop(sender.send(output).inspect_err(cannot_send));
-}
 
-unsafe extern "C" fn end_call_cb(
-    client: *mut GObject,
-    res: *mut GAsyncResult,
-    user_data: *mut c_void,
-) {
-    let sender = Box::from_raw(user_data.cast::<oneshot::Sender<QmiResult<u8>>>());
-    let mut error: *mut GError = null_mut();
+            let output = if $get_result(output_ptr, &mut error) == GFALSE {
+                Err((error, concat!($context, " get_result")).into())
+            } else {
+                let mut call_id = 0;
 
-    let end_output = qmi_client_voice_end_call_finish(client.cast(), res, &mut error);
-    if end_output.is_null() {
-        let _drop = sender
-            .send(Err((error, "end_call cb finish").into()))
-            .inspect_err(cannot_send);
-        return;
-    }
-    let output = if qmi_message_voice_end_call_output_get_result(end_output, &mut error) == GFALSE {
-        Err((error, "end_call cb get_result").into())
-    } else {
-        let mut call_id: u8 = 0;
-        let ret =
-            qmi_message_voice_end_call_output_get_call_id(end_output, &mut call_id, &mut error);
-        match ret {
-            GFALSE => Err((error, "end_call cb get_call_id").into()),
-            _ => Ok(call_id),
+                if $get_call_id(output_ptr, &mut call_id, &mut error) == GFALSE {
+                    Err((error, concat!($context, " get_call_id")).into())
+                } else {
+                    Ok(call_id)
+                }
+            };
+
+            $unref(output_ptr);
+            drop(sender.send(output).inspect_err(cannot_send));
         }
     };
-    qmi_message_voice_end_call_output_unref(end_output);
-    drop(sender.send(output).inspect_err(cannot_send));
 }
 
-unsafe extern "C" fn dtmf_tones_request_cb(
-    client: *mut GObject,
-    res: *mut GAsyncResult,
-    user_data: *mut c_void,
-) {
-    let sender = Box::from_raw(user_data.cast::<oneshot::Sender<QmiResult<u8>>>());
-    let mut error: *mut GError = null_mut();
+voice_call_callback!(
+    dial_call_cb,
+    finish = qmi_client_voice_dial_call_finish,
+    get_result = qmi_message_voice_dial_call_output_get_result,
+    get_call_id = qmi_message_voice_dial_call_output_get_call_id,
+    unref = qmi_message_voice_dial_call_output_unref,
+    context = "dial_call cb"
+);
 
-    let dtmf_output = qmi_client_voice_burst_dtmf_finish(client.cast(), res, &mut error);
-    if dtmf_output.is_null() {
-        let _drop = sender
-            .send(Err((error, "dtmf_tones_request cb finish").into()))
-            .inspect_err(cannot_send);
-        return;
-    }
-    let output = if qmi_message_voice_burst_dtmf_output_get_result(dtmf_output, &mut error)
-        == GFALSE
-    {
-        Err((error, "dtmf_tones_request cb get_result").into())
-    } else {
-        let mut call_id: u8 = 0;
-        let ret =
-            qmi_message_voice_burst_dtmf_output_get_call_id(dtmf_output, &mut call_id, &mut error);
-        match ret {
-            GFALSE => Err((error, "dtmf_tones_request cb get_call_id").into()),
-            _ => Ok(call_id),
-        }
-    };
-    qmi_message_voice_burst_dtmf_output_unref(dtmf_output);
-    drop(sender.send(output).inspect_err(cannot_send));
-}
+voice_call_callback!(
+    answer_call_cb,
+    finish = qmi_client_voice_answer_call_finish,
+    get_result = qmi_message_voice_answer_call_output_get_result,
+    get_call_id = qmi_message_voice_answer_call_output_get_call_id,
+    unref = qmi_message_voice_answer_call_output_unref,
+    context = "answer_call cb"
+);
+
+voice_call_callback!(
+    end_call_cb,
+    finish = qmi_client_voice_end_call_finish,
+    get_result = qmi_message_voice_end_call_output_get_result,
+    get_call_id = qmi_message_voice_end_call_output_get_call_id,
+    unref = qmi_message_voice_end_call_output_unref,
+    context = "end_call cb"
+);
+
+voice_call_callback!(
+    dtmf_tones_request_cb,
+    finish = qmi_client_voice_burst_dtmf_finish,
+    get_result = qmi_message_voice_burst_dtmf_output_get_result,
+    get_call_id = qmi_message_voice_burst_dtmf_output_get_call_id,
+    unref = qmi_message_voice_burst_dtmf_output_unref,
+    context = "dtmf_tones_request cb"
+);
