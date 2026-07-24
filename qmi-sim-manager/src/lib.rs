@@ -59,6 +59,10 @@ pub(crate) mod init;
 pub(crate) mod messaging;
 pub(crate) mod network;
 
+#[cfg(feature = "at-at")]
+#[path = "at-at/mod.rs"]
+pub mod at_at;
+
 /// Types related to SMS messages.
 pub mod sms {
     pub use crate::messaging::sms::SmsWapPush;

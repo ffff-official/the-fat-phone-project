@@ -34,6 +34,21 @@ xmltree = { version = "0.12", features = ["attribute-order"] }
 thiserror = "2.0.18"
 uuid = { version = "1", features = ["v4"] }
 
+tokio-serial = { version = "5.5", optional = true }
+atat = { version = "0.24", features = ["std"], optional = true }
+embedded-io-async = { version = "0.6", features = ["std"], optional = true }
+embassy-time = { version = "0.4", features = ["std", "generic-queue-8"], optional = true}
+
+[features]
+default = ["at-at"]
+
+at-at = [
+    "dep:tokio-serial",
+    "dep:atat",
+    "dep:embedded-io-async",
+    "dep:embassy-time",
+]
+
 [dev-dependencies]
 serial_test = "3.5"
 hex-literal = "1.1"
