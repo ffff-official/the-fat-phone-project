@@ -16,14 +16,25 @@ use std::net::Ipv4Addr;
 use std::ptr::{NonNull, null_mut};
 use std::rc::Rc;
 
-/// A client for interacting with the Wireless Data Service (WDS) interface of a QMI device.
+/// A client for interacting with the Wireless Data Service (WDS) of a QMI device.
+///
+/// [`WdsClient`] provides asynchronous operations for managing packet data
+/// connections through a QMI-compatible modem.
+///
+/// It can be used to:
+///
+/// - establish and terminate mobile data connections;
+/// - monitor packet service status;
+/// - retrieve connection parameters and network settings;.
+///
+/// The underlying QMI client is reference-counted and remains valid while at
+/// least one [`WdsClient`] instance exists.
 #[derive(Debug)]
 pub struct WdsClient {
     client: NonNull<QmiClientWds>,
     device: Device,
     data: Rc<RefCell<Option<Data>>>,
 }
-
 #[derive(Debug, Clone, Copy)]
 pub struct Data {
     pdh: u32, // session identifier

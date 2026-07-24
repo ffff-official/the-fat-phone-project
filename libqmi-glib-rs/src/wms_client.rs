@@ -21,7 +21,22 @@ type Route = MessageWmsGetRoutesOutputRouteListElement;
 type QmiRoute = QmiMessageWmsGetRoutesOutputRouteListElement;
 type EventReportCallback = Box<dyn FnMut(&[u8], WmsMessageFormat)>;
 
-/// A client for interacting with the Wireless Messaging Service (WMS) interface of a QMI device.
+/// A client for interacting with the Wireless Messaging Service (WMS) of a QMI device.
+///
+/// [`WmsClient`] provides asynchronous operations for managing SMS messaging
+/// through a QMI-compatible modem.
+///
+/// It can be used to:
+///
+/// - send SMS messages;
+/// - configure SMS routing and event reporting;
+/// - register for SMS and delivery report indications;
+///
+/// Incoming SMS messages, delivery reports, and other messaging events are
+/// reported asynchronously through WMS indications.
+///
+/// The underlying QMI client is reference-counted and remains valid while at
+/// least one [`WmsClient`] instance exists.
 #[derive(Debug)]
 pub struct WmsClient {
     client: NonNull<QmiClientWms>,
