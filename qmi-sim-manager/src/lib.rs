@@ -52,6 +52,7 @@
 //!
 //! This library is under active development.
 //! Future releases are expected to add support for additional modem features, including better SIM card management, mobile network gateway, GPS, and more.
+#![cfg_attr(docsrs, feature(doc_cfg))]
 #![allow(clippy::enum_variant_names)]
 
 pub(crate) mod engine;
@@ -60,6 +61,7 @@ pub(crate) mod messaging;
 pub(crate) mod network;
 
 #[cfg(feature = "at-at")]
+#[cfg_attr(docsrs, doc(cfg(feature = "at-at")))]
 #[path = "at-at/mod.rs"]
 pub mod at_at;
 
@@ -291,6 +293,11 @@ pub enum Error {
     /// Downcasting error on libqmi-rs Service feature
     #[error("Raw service response could not be downcast to the requested type")]
     DowncastingFailed,
+    #[cfg(feature = "at-at")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "at-at")))]
+    /// Error from AT-AT.
+    #[error("Errpr from AT-AT")]
+    AtAtError(atat::Error),
     /// Generic error. This error will be removed in a future version.
     #[error("Generic Error")]
     Other(String),
