@@ -11,6 +11,7 @@ The library provides an asynchronous API for:
 * Placing, answering, and terminating voice calls.
 * Sending and receiving SMS messages.
 * Downloading and sending MMS messages.
+* AT command basic support. (via feature at-at)
 * Receiving SMS delivery reports.
 * Receiving MMS notifications (WAP Push).
 * Managing packet data connections.
@@ -249,7 +250,6 @@ This library is under active development.
 
 Future releases are expected to expand support for additional modem features, including:
 
-* AT command support.
 * Extended SIM/UIM management.
 * GPS and positioning services.
 * Additional QMI services.

@@ -1,6 +1,6 @@
 [package]
 name = "qmi-sim-manager"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2024"
 authors = ["bmickael <bmickael@proton.me>"]
 repository = "https://gitlab.com/mordaklavache/the-fat-phone-project"
@@ -44,7 +44,7 @@ embedded-io-async = { version = "0.6", features = ["std"], optional = true }
 embassy-time = { version = "0.4", features = ["std", "generic-queue-8"], optional = true}
 
 [features]
-default = ["at-at"]
+default = []
 
 at-at = [
     "dep:tokio-serial",
