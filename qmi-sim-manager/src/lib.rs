@@ -62,8 +62,9 @@ pub(crate) mod network;
 
 #[cfg(feature = "at-at")]
 #[cfg_attr(docsrs, doc(cfg(feature = "at-at")))]
-#[path = "at-at/mod.rs"]
-pub mod at_at;
+pub mod atat;
+
+const EVT_CHANNEL_LEN: usize = 32;
 
 /// Types related to SMS messages.
 pub mod sms {
@@ -134,7 +135,7 @@ use std::sync::mpsc::sync_channel;
 /// that can be shared across tasks.
 pub struct ClientHandle {
     client: Client,
-    events: Option<mpsc::UnboundedReceiver<Event>>,
+    events: Option<mpsc::Receiver<Event>>,
     thread: Option<std::thread::JoinHandle<SmResult<()>>>,
 }
 
@@ -148,7 +149,10 @@ pub struct Client {
 
 /// EventStream provides methods for retrieving events asynchronously or non-blockingly through next_event and try_next_event.
 /// It also implements the futures::Stream trait.
-pub struct EventStream(mpsc::UnboundedReceiver<Event>);
+///
+/// **Note**: The channel is bounded and can hold at most 32 pending events.
+/// Additional events are dropped until space becomes available.
+pub struct EventStream(mpsc::Receiver<Event>);
 
 struct SmClientInner {
     engine_sender: mpsc::UnboundedSender<engine::Request>,
@@ -173,7 +177,7 @@ impl ClientHandle {
         let (status_sender, status_receiver) =
             sync_channel::<SmResult<mpsc::UnboundedSender<engine::Request>>>(1);
 
-        let (sm_event_sender, sm_event_receiver) = mpsc::unbounded();
+        let (sm_event_sender, sm_event_receiver) = mpsc::channel(EVT_CHANNEL_LEN);
 
         let path = qmi_device_path.as_ref().to_path_buf();
         let thread =
@@ -295,6 +299,11 @@ pub enum Error {
     DowncastingFailed,
     #[cfg(feature = "at-at")]
     #[cfg_attr(docsrs, doc(cfg(feature = "at-at")))]
+    /// The Tokio serial crate encountered an error.
+    #[error("Tokio Serial Error")]
+    TokioSerialError(#[source] tokio_serial::Error),
+    #[cfg(feature = "at-at")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "at-at")))]
     /// Error from AT-AT.
     #[error("Errpr from AT-AT")]
     AtAtError(atat::Error),
@@ -315,8 +324,8 @@ impl From<&'static str> for Error {
     }
 }
 
-impl From<futures::channel::mpsc::TrySendError<Request>> for Error {
-    fn from(_: futures::channel::mpsc::TrySendError<Request>) -> Self {
+impl<T> From<futures::channel::mpsc::TrySendError<T>> for Error {
+    fn from(_: futures::channel::mpsc::TrySendError<T>) -> Self {
         Error::EngineStopped
     }
 }

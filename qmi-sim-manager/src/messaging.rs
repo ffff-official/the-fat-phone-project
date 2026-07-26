@@ -64,7 +64,7 @@ impl std::error::Error for MessageOutOfBound {}
 pub(crate) async fn start_messaging(
     wms_client: &mut WmsClient,
     tokio_handle: Handle,
-    sm_event_sender: mpsc::UnboundedSender<Event>,
+    sm_event_sender: mpsc::Sender<Event>,
 ) -> SmResult<JoinHandle<()>> {
     tracing::debug!("prepare_messaging :");
     let (mut tpdu_sender, tpdu_receiver) = futures::channel::mpsc::unbounded();
@@ -97,7 +97,7 @@ pub(crate) async fn start_messaging(
 /// the result through an MPSC channel to the library client.
 async fn process_messsages(
     mut tpdu_reveiver: UnboundedReceiver<(Vec<u8>, WmsMessageFormat)>,
-    mut sm_event_sender: mpsc::UnboundedSender<Event>,
+    mut sm_event_sender: mpsc::Sender<Event>,
 ) -> SmResult<u32> {
     loop {
         match tpdu_reveiver.try_recv() {

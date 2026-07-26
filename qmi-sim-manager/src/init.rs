@@ -19,7 +19,7 @@ use std::sync::mpsc::SyncSender;
 pub(crate) fn init_thread(
     qmi_device_path: PathBuf,
     status_sender: SyncSender<SmResult<mpsc::UnboundedSender<engine::Request>>>,
-    sm_event_sender: mpsc::UnboundedSender<Event>,
+    sm_event_sender: mpsc::Sender<Event>,
 ) -> SmResult<()> {
     let file: *mut gio_sys::GFile = unsafe {
         g_file_new_for_path(

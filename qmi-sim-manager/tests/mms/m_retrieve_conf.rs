@@ -41,7 +41,7 @@ fn mms_m_retrieve_conf_header() {
     println!("{}", set_xmms_fields(&M_RETRIEVE_CONF_HEADER).unwrap().0);
 }
 
-const M_RETRIEVE_CONF: &[u8] = include_bytes!("../../data-test/mms.bin");
+const M_RETRIEVE_CONF: &[u8] = include_bytes!("../../data-test/mms_first.bin");
 
 #[test]
 #[serial]
