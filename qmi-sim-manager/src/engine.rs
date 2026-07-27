@@ -220,7 +220,7 @@ pub(crate) async fn glib_control_loop(
 }
 
 fn req_send<T: std::fmt::Debug>(reply_sender: Sender<T>, ret: T) {
-    if let Err(t) = reply_sender.send(ret) {
-        tracing::error!("Can't send : {:?}", t);
+    if let Err(e) = reply_sender.send(ret) {
+        tracing::error!("cannot send : {e:?}");
     }
 }

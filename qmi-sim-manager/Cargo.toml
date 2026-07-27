@@ -1,6 +1,6 @@
 [package]
 name = "qmi-sim-manager"
-version = "0.1.2"
+version = "0.1.3"
 edition = "2024"
 authors = ["bmickael <bmickael@proton.me>"]
 repository = "https://gitlab.com/mordaklavache/the-fat-phone-project"

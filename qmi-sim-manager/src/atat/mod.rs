@@ -349,7 +349,7 @@ impl AtClient {
                 let result = simple_client.send(&cmd).await;
 
                 if reply_sender.send(result).is_err() {
-                    tracing::warn!("Unable to return AT command result");
+                    tracing::error!("Unable to return AT command result");
                 }
             })
         });

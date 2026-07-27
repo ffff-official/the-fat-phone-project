@@ -113,10 +113,10 @@ use engine::{GetMmsRequest, Request, SendMmsRequest, ShutDownRequest, SmsRequest
 use engine::{StartNetworkRequest, StopNetworkRequest};
 use engine::{UimServiceRequest, VoiceServiceRequest, WdsServiceRequest, WmsServiceRequest};
 
-use futures::Stream;
 use futures::channel::mpsc;
 use futures::channel::oneshot;
 use futures::task::{Context, Poll};
+use futures::{SinkExt, Stream};
 use num_enum::TryFromPrimitiveError;
 
 use std::any::type_name;
@@ -167,8 +167,17 @@ pub enum Event {
     SmsWapPush(sms::SmsWapPush),
     /// An SMS status report has been received.
     SmsStatusReport(sms::SmsStatusReport),
-    /// Voice call event
+    /// Voice call event.
     VoiceCallEvent(Vec<voice::VoiceCall>),
+    /// Internal Error.
+    InternalError(Error),
+}
+
+async fn send_event(sender: &mut mpsc::Sender<Event>, evt: Event) {
+    let _r = sender
+        .send(evt)
+        .await
+        .inspect_err(|e| tracing::error!("cannot send : {e}"));
 }
 
 impl ClientHandle {

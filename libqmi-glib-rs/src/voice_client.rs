@@ -259,7 +259,7 @@ impl VoiceClient {
         let (tx, rx) = oneshot::channel::<QmiResult<u8>>();
 
         let digits = CString::new(digits.as_ref())
-            .map_err(|_e| QmiError::new("Trailing NULL value".to_string(), "dtmf_tones_request"))?;
+            .map_err(|_e| QmiError::new("Trailing NULL value", "dtmf_tones_request"))?;
 
         let input = unsafe { qmi_message_voice_burst_dtmf_input_new() };
 

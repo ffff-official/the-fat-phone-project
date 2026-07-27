@@ -17,10 +17,10 @@ gsm7-rs = { path = "gsm7-rs", version = "0.4.0" }
 glib-boilerplates = { path = "glib-boilerplates", version = "0.1.0" }
 libqmi-glib-sys = { path = "libqmi-glib-sys", features = ["v1_32"], version = "0.1.0" }
 libqmi-glib-types-rs = { path = "libqmi-glib-types-rs", features = ["v1_32"], version = "0.1.2" }
-libqmi-glib-rs = { path = "libqmi-glib-rs", version = "0.1.2" }
+libqmi-glib-rs = { path = "libqmi-glib-rs", version = "0.1.3" }
 qrtr-sys = { path = "qrtr-sys", version = "0.1.1" }
 qrtr-minimal = { path = "qrtr-minimal", version = "0.1.1" }
-qmi-sim-manager = { path = "qmi-sim-manager", version = "0.1.2", features = ["at-at"] }
+qmi-sim-manager = { path = "qmi-sim-manager", version = "0.1.3", features = ["at-at"] }
 
 glib-sys = "0.22"
 gobject-sys = "0.22"

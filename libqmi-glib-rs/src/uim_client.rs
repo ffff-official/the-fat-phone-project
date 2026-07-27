@@ -119,7 +119,7 @@ impl UimClient {
         let (tx, rx) = oneshot::channel::<QmiResult<u8>>();
 
         let c_string = CString::new(pin_code.as_ref())
-            .map_err(|_e| QmiError::new("Trailing NULL value".to_string(), "verify_pin"))?;
+            .map_err(|_e| QmiError::new("Trailing NULL value", "verify_pin"))?;
 
         let input = unsafe { qmi_message_uim_verify_pin_input_new() };
 

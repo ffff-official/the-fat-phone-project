@@ -1207,7 +1207,7 @@ checksum = "22053b6a34f84abc97f9129e61334f40174659a1b9bd18c970b83db6a9a6348b"
 
 [[package]]
 name = "libqmi-glib-rs"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "futures",
  "gio-sys",
@@ -1583,7 +1583,7 @@ dependencies = [
 
 [[package]]
 name = "qmi-sim-manager"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "atat",
  "bitfields",

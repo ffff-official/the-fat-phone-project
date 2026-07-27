@@ -17,7 +17,6 @@ use sms::IncomingSmsTpdu;
 
 use sms::SmsStatusReport;
 
-use futures::SinkExt;
 use futures::channel::mpsc::{self, TryRecvError, UnboundedReceiver};
 use reqwest::Client;
 use tokio::runtime::Handle;
@@ -68,9 +67,14 @@ pub(crate) async fn start_messaging(
 ) -> SmResult<JoinHandle<()>> {
     tracing::debug!("prepare_messaging :");
     let (mut tpdu_sender, tpdu_receiver) = futures::channel::mpsc::unbounded();
+    let mut sm_event_sender_clone = sm_event_sender.clone();
     wms_client
-        .set_event_report(Box::new(move |tpdu, format| {
-            if let Err(e) = tpdu_sender.start_send((tpdu.to_vec(), format)) {
+        .set_event_report(Box::new(move |result| {
+            let ret = match result {
+                Ok((tpdu, format)) => tpdu_sender.start_send((tpdu.to_vec(), format)),
+                Err(e) => sm_event_sender_clone.start_send(Event::InternalError(e.into())),
+            };
+            if let Err(e) = ret {
                 tracing::warn!("set_event_report sender : cannot send : {:?}", e);
             }
         }))
@@ -111,29 +115,39 @@ async fn process_messsages(
                         match tpdu {
                             SmsDeliverTpdu(tpdu) => match sms::SmsType::try_from(tpdu) {
                                 Ok(sms_type) => {
-                                    let _r = sm_event_sender
-                                        .send(match sms_type {
+                                    crate::send_event(
+                                        &mut sm_event_sender,
+                                        match sms_type {
                                             SmsType::Sms(sms) => Event::Sms(sms),
                                             SmsType::SmsWapPush(sms_wap_push) => {
                                                 Event::SmsWapPush(sms_wap_push)
                                             }
-                                        })
-                                        .await
-                                        .inspect_err(|e| tracing::error!("cannot send : {e}"));
+                                        },
+                                    )
+                                    .await
                                 }
                                 Err(e) => {
-                                    tracing::error!("CRITICAL : {}", e);
+                                    crate::send_event(
+                                        &mut sm_event_sender,
+                                        Event::InternalError(crate::Error::UnexpectedPattern(
+                                            e.into(),
+                                        )),
+                                    )
+                                    .await
                                 }
                             },
                             SmsStatusReportTpdu(tpdu) => {
-                                let _r = sm_event_sender
-                                    .send(Event::SmsStatusReport(SmsStatusReport::from(tpdu)))
-                                    .await
-                                    .inspect_err(|e| tracing::error!("cannot send : {e}"));
+                                crate::send_event(
+                                    &mut sm_event_sender,
+                                    Event::SmsStatusReport(SmsStatusReport::from(tpdu)),
+                                )
+                                .await
                             }
                         }
                     }
-                    Err(e) => tracing::error!("{}", e),
+                    Err(e) => {
+                        crate::send_event(&mut sm_event_sender, Event::InternalError(e)).await
+                    }
                 }
             }
             Err(TryRecvError::Empty) => {

@@ -58,10 +58,12 @@ pub(crate) fn init_thread(
                 let mut sm_event_sender_clone = sm_event_sender.clone();
                 voice_client
                     .set_all_call_status(Box::new(move |call_info_vec| {
-                        if let Err(e) =
-                            sm_event_sender_clone.start_send(Event::VoiceCallEvent(call_info_vec))
-                        {
-                            tracing::warn!("set_all_call_status sender : cannot send : {:?}", e);
+                        let ret = sm_event_sender_clone.start_send(match call_info_vec {
+                            Ok(call_info_vec) => Event::VoiceCallEvent(call_info_vec),
+                            Err(e) => Event::InternalError(Error::Qmi(e)),
+                        });
+                        if let Err(e) = ret {
+                            tracing::error!("set_all_call_status sender : cannot send : {:?}", e);
                         }
                     }))
                     .await?;
