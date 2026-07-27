@@ -19,7 +19,7 @@ use std::rc::Rc;
 
 type Route = MessageWmsGetRoutesOutputRouteListElement;
 type QmiRoute = QmiMessageWmsGetRoutesOutputRouteListElement;
-type EventReportCallback = Box<dyn FnMut(&[u8], WmsMessageFormat)>;
+type EventReportCallback = Box<dyn FnMut(QmiResult<(&[u8], WmsMessageFormat)>)>;
 
 /// A client for interacting with the Wireless Messaging Service (WMS) of a QMI device.
 ///
@@ -189,8 +189,8 @@ impl WmsClient {
             let data = (*tpdu).data.cast::<u8>();
 
             if data.is_null() && len != 0 {
-                tracing::error!("GArray data is NULL but length is {len}");
-                unreachable!();
+                tracing::debug!("GArray data is NULL but length is {len}");
+                return Err(QmiError::new("Unexpected GLIB GArray", "send sms"));
             }
 
             let bytes = std::slice::from_raw_parts(data, len);
@@ -263,8 +263,9 @@ unsafe extern "C" fn event_report_cb(
         &mut value_transfer_route_mt_message_raw_data,
         &mut error,
     );
+    let cb = &mut *(user_data.cast::<EventReportCallback>());
     if ret == GFALSE {
-        tracing::error!("{}", Into::<QmiError>::into((error, "message event TPDU")));
+        cb(Err(Into::<QmiError>::into((error, "message event TPDU"))));
     } else {
         let data = {
             let ptr = (*value_transfer_route_mt_message_raw_data).data.cast();
@@ -272,9 +273,7 @@ unsafe extern "C" fn event_report_cb(
             std::slice::from_raw_parts(ptr, len)
         };
         let message_format = WmsMessageFormat::from_glib(value_transfer_route_mt_message_format);
-
-        let cb = &mut *(user_data.cast::<EventReportCallback>());
-        cb(data, message_format);
+        cb(Ok((data, message_format)));
     }
 }
 
@@ -392,9 +391,9 @@ unsafe extern "C" fn send_sms_cb(
                     null_mut(),
                 );
                 if has_cause != 0 {
-                    tracing::error!("{:?}", WmsGsmUmtsRpCause::from_glib(rp_cause));
-                    tracing::error!("{:?}", WmsGsmUmtsTpCause::from_glib(tp_cause));
-                    tracing::error!("SMS sending failed with GSM/UMTS cause");
+                    tracing::debug!("{:?}", WmsGsmUmtsRpCause::from_glib(rp_cause));
+                    tracing::debug!("{:?}", WmsGsmUmtsTpCause::from_glib(tp_cause));
+                    tracing::debug!("SMS sending failed with GSM/UMTS cause");
                 }
                 Err((error, "send_sms_cb 2").into())
             }

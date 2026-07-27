@@ -290,7 +290,7 @@ unsafe extern "C" fn get_current_settings_cb(
     let sender = Box::from_raw(user_data.cast::<oneshot::Sender<QmiResult<Ipv4NetworkSettings>>>());
     let mut error: *mut GError = null_mut();
     let status_output = qmi_client_wds_get_current_settings_finish(client.cast(), res, &mut error);
-    let ipv4_network_settings = match status_output.is_null() {
+    let ipv4_network_settings = || match status_output.is_null() {
         true => Err((error, "get_current_settings_cb").into()),
         false => {
             let ipv4_network_settings = Ipv4NetworkSettings {
@@ -300,41 +300,45 @@ unsafe extern "C" fn get_current_settings_cb(
                         value,
                         error,
                     )
-                }),
+                })?,
                 gw: get_optional_u32("Cant get gw", |value, error| {
                     qmi_message_wds_get_current_settings_output_get_ipv4_gateway_address(
                         status_output,
                         value,
                         error,
                     )
-                }),
+                })?,
                 mask: get_optional_u32("Cant get mask", |value, error| {
                     qmi_message_wds_get_current_settings_output_get_ipv4_gateway_subnet_mask(
                         status_output,
                         value,
                         error,
                     )
-                }),
+                })?,
                 pdp: get_optional_u32("Cant get pdp", |value, error| {
                     qmi_message_wds_get_current_settings_output_get_pdp_type(
                         status_output,
                         value as _,
                         error,
                     )
-                })
+                })?
                 .map(|m| WdsPdpType::from_glib(m as i32)),
                 mtu: get_optional_u32("Cant get mtu", |value, error| {
                     qmi_message_wds_get_current_settings_output_get_mtu(status_output, value, error)
-                }),
+                })?,
             };
             qmi_message_wds_get_current_settings_output_unref(status_output);
             Ok(ipv4_network_settings)
         }
     };
-    drop(sender.send(ipv4_network_settings).inspect_err(cannot_send));
+    drop(
+        sender
+            .send(ipv4_network_settings())
+            .inspect_err(cannot_send),
+    );
 }
 
-unsafe fn get_optional_u32<F>(label: &'static str, mut f: F) -> Option<guint32>
+unsafe fn get_optional_u32<F>(label: &'static str, mut f: F) -> QmiResult<Option<guint32>>
 where
     F: FnMut(*mut guint32, *mut *mut GError) -> gboolean,
 {
@@ -342,11 +346,8 @@ where
     let mut error: *mut GError = std::ptr::null_mut();
 
     match f(&mut value, &mut error) {
-        GFALSE => {
-            tracing::warn!("{:?}", Into::<QmiError>::into((error, label)));
-            None
-        }
-        _ => Some(value),
+        GFALSE => Err(Into::<QmiError>::into((error, label))),
+        _ => Ok(Some(value)),
     }
 }
 

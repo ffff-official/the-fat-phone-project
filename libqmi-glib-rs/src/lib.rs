@@ -286,9 +286,9 @@ impl std::fmt::Display for QmiError {
 }
 
 impl QmiError {
-    fn new<T: ToString>(message: T, context: &'static str) -> Self {
+    fn new(message: impl AsRef<str>, context: &'static str) -> Self {
         Self {
-            message: message.to_string(),
+            message: message.as_ref().to_string(),
             context,
         }
     }

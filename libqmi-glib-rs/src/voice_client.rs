@@ -48,7 +48,7 @@ client_drop_impl!(VoiceClient);
 client_clone_impl!(VoiceClient);
 
 type CallInformation = IndicationVoiceAllCallStatusOutputCallInformationCall;
-type CallInfoCallback = Box<dyn FnMut(Vec<VoiceCall>)>;
+type CallInfoCallback = Box<dyn FnMut(QmiResult<Vec<VoiceCall>>)>;
 
 /// Describes a voice call reported by the modem.
 ///
@@ -326,11 +326,12 @@ unsafe extern "C" fn all_call_status_cb(
         &mut garray,
         &mut error,
     );
+    let cb = &mut *(user_data.cast::<CallInfoCallback>());
     if ret == GFALSE || garray.is_null() {
-        tracing::error!(
-            "{}",
-            Into::<QmiError>::into((error, "call event informations"))
-        );
+        cb(Err(Into::<QmiError>::into((
+            error,
+            "call event informations",
+        ))));
     } else {
         let info_calls = {
             let ptr = (*garray)
@@ -346,10 +347,10 @@ unsafe extern "C" fn all_call_status_cb(
             &mut error,
         );
         if ret == GFALSE || garray.is_null() {
-            tracing::error!(
-                "{}",
-                Into::<QmiError>::into((error, "call event party number"))
-            );
+            cb(Err(Into::<QmiError>::into((
+                error,
+                "call event party number",
+            ))));
         } else {
             let remote_party_numbers = {
                 let ptr = (*garray)
@@ -382,8 +383,7 @@ unsafe extern "C" fn all_call_status_cb(
                 })
                 .collect();
             let calls = filter_duplicates(calls);
-            let cb = &mut *(user_data.cast::<CallInfoCallback>());
-            cb(calls);
+            cb(Ok(calls));
         }
     }
 }
