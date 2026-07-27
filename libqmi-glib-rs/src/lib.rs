@@ -2,7 +2,7 @@
 //!
 //! It allows applications to communicate with QMI-based cellular modems using idiomatic async/await while leveraging GLib's asynchronous APIs under the hood.
 //! The library wraps a little part of QMI operations such as device management, client creation, and network services in a Rust-friendly API.  
-//! ```rust
+//! ```no_run
 //! use libqmi_glib_rs::*;
 //!
 //! use gio_sys::g_file_new_for_path;
