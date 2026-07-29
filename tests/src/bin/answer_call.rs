@@ -1,10 +1,11 @@
-use dotenvy::dotenv;
-use futures::stream::StreamExt;
+use tests::*;
+
 use qmi_sim_manager::Event::VoiceCallEvent;
 use qmi_sim_manager::libqmi::types::VoiceCallState;
 use qmi_sim_manager::{Client, ClientHandle};
 
-use std::path::PathBuf;
+use futures::stream::StreamExt;
+
 use std::time::Duration;
 
 #[tokio::main]
@@ -50,18 +51,4 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     client_handle.shutdown().await?;
     h.await?;
     Ok(())
-}
-
-fn configure_tracing() {
-    use tracing::level_filters::LevelFilter;
-    use tracing_subscriber::{Layer, layer::SubscriberExt, util::SubscriberInitExt};
-
-    let stdout_layer = tracing_subscriber::fmt::layer()
-        .with_target(true)
-        .with_line_number(true)
-        .with_ansi(true)
-        .with_writer(std::io::stdout)
-        .with_filter(LevelFilter::DEBUG);
-
-    drop(tracing_subscriber::registry().with(stdout_layer).try_init());
 }

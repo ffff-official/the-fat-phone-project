@@ -1,7 +1,7 @@
 use crate::{Error, ServiceFuture, ServiceResult, SmResult, messaging, network};
 use messaging::{MmsContent, MmsStatus};
 
-use libqmi_glib_rs::{UimClient, VoiceClient, WdsClient, WmsClient};
+use libqmi_glib_rs::{NasClient, UimClient, VoiceClient, WdsClient, WmsClient};
 use libqmi_glib_types_rs::WdsConnectionStatus;
 
 use futures::channel::mpsc;
@@ -34,6 +34,7 @@ pub enum Request {
     WmsService(WmsServiceRequest),
     UimService(UimServiceRequest),
     VoiceService(VoiceServiceRequest),
+    NasService(NasServiceRequest),
 }
 
 #[derive(Debug)]
@@ -76,49 +77,31 @@ pub struct SendMmsRequest {
     pub reply_sender: oneshot::Sender<SmResult<MmsStatus>>,
 }
 
-pub struct WdsServiceRequest {
-    pub executor: Box<dyn FnOnce(WdsClient, tokio::runtime::Handle) -> ServiceFuture + Send>,
-    pub reply_sender: oneshot::Sender<ServiceResult>,
+macro_rules! with_service_request {
+    (
+        $request_type:ident,
+        $client_type:ty,
+        $context:literal
+    ) => {
+        pub struct $request_type {
+            pub executor:
+                Box<dyn FnOnce($client_type, tokio::runtime::Handle) -> ServiceFuture + Send>,
+            pub reply_sender: oneshot::Sender<ServiceResult>,
+        }
+
+        impl fmt::Debug for $request_type {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(f, concat!($context, " service executor"))
+            }
+        }
+    };
 }
 
-impl fmt::Debug for WdsServiceRequest {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "wds service executor")
-    }
-}
-
-pub struct WmsServiceRequest {
-    pub executor: Box<dyn FnOnce(WmsClient, tokio::runtime::Handle) -> ServiceFuture + Send>,
-    pub reply_sender: oneshot::Sender<ServiceResult>,
-}
-
-impl fmt::Debug for WmsServiceRequest {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "wms service executor")
-    }
-}
-
-pub struct UimServiceRequest {
-    pub executor: Box<dyn FnOnce(UimClient, tokio::runtime::Handle) -> ServiceFuture + Send>,
-    pub reply_sender: oneshot::Sender<ServiceResult>,
-}
-
-impl fmt::Debug for UimServiceRequest {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "uim service executor")
-    }
-}
-
-pub struct VoiceServiceRequest {
-    pub executor: Box<dyn FnOnce(VoiceClient, tokio::runtime::Handle) -> ServiceFuture + Send>,
-    pub reply_sender: oneshot::Sender<ServiceResult>,
-}
-
-impl fmt::Debug for VoiceServiceRequest {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "voice service executor")
-    }
-}
+with_service_request!(WdsServiceRequest, WdsClient, "wds");
+with_service_request!(WmsServiceRequest, WmsClient, "wms");
+with_service_request!(UimServiceRequest, UimClient, "uim");
+with_service_request!(VoiceServiceRequest, VoiceClient, "voice");
+with_service_request!(NasServiceRequest, NasClient, "nas");
 
 /// This control loop receives all external commands. It uses the various QMI services to process
 /// each command and then returns the result using a Request–Reply pattern.
@@ -127,6 +110,7 @@ pub(crate) async fn glib_control_loop(
     mut wms_client: WmsClient,
     uim_client: UimClient,
     voice_client: VoiceClient,
+    nas_client: NasClient,
     tokio_handle: tokio::runtime::Handle,
     mut mpsc_receiver: mpsc::UnboundedReceiver<Request>,
 ) -> SmResult<String> {
@@ -207,6 +191,11 @@ pub(crate) async fn glib_control_loop(
                 Request::VoiceService(req) => {
                     let func = req.executor;
                     let ret = func(voice_client.clone(), tokio_handle.clone()).await;
+                    req_send(req.reply_sender, ret);
+                }
+                Request::NasService(req) => {
+                    let func = req.executor;
+                    let ret = func(nas_client.clone(), tokio_handle.clone()).await;
                     req_send(req.reply_sender, ret);
                 }
             },

@@ -16,7 +16,7 @@ resolver = "3"
 gsm7-rs = { path = "gsm7-rs", version = "0.4.0" }
 glib-boilerplates = { path = "glib-boilerplates", version = "0.1.0" }
 libqmi-glib-sys = { path = "libqmi-glib-sys", features = ["v1_32"], version = "0.1.0" }
-libqmi-glib-types-rs = { path = "libqmi-glib-types-rs", features = ["v1_32"], version = "0.1.2" }
+libqmi-glib-types-rs = { path = "libqmi-glib-types-rs", features = ["v1_32"], version = "0.1.3" }
 libqmi-glib-rs = { path = "libqmi-glib-rs", version = "0.1.3" }
 qrtr-sys = { path = "qrtr-sys", version = "0.1.1" }
 qrtr-minimal = { path = "qrtr-minimal", version = "0.1.1" }

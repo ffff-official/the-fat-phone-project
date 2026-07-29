@@ -2,14 +2,13 @@
 // xxd -r -p <<'EOF' | dd of=mms2.bin count=1 conv=notrunc status=none
 // EOF
 // RUSTFLAGS="-Zsanitizer=address -Cforce-frame-pointers=yes" cargo test -Zbuild-std --target x86_64-unknown-linux-gnu
-use dotenvy::dotenv;
+use tests::*;
+
 use futures::stream::StreamExt;
 use qmi_sim_manager::ClientHandle;
 use qmi_sim_manager::mms::WspWellKnownContentType::ImageJpeg;
 use qmi_sim_manager::mms::{MmsContent, WspContentType};
 
-use std::env;
-use std::path::PathBuf;
 use std::time::Duration;
 
 #[tokio::main]
@@ -71,18 +70,4 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     client_handle.shutdown().await?;
     h.await?;
     Ok(())
-}
-
-fn configure_tracing() {
-    use tracing::level_filters::LevelFilter;
-    use tracing_subscriber::{Layer, layer::SubscriberExt, util::SubscriberInitExt};
-
-    let stdout_layer = tracing_subscriber::fmt::layer()
-        .with_target(true)
-        .with_line_number(true)
-        .with_ansi(true)
-        .with_writer(std::io::stdout)
-        .with_filter(LevelFilter::DEBUG);
-
-    drop(tracing_subscriber::registry().with(stdout_layer).try_init());
 }

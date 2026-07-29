@@ -86,6 +86,8 @@ pub mod uim {
     pub use libqmi_glib_types_rs::MessageUimGetCardStatusOutputCardStatusCardsElement;
     pub use libqmi_glib_types_rs::MessageUimGetCardStatusOutputCardStatusCardsElementApplicationsElementV2;
 }
+/// Types related to NAS module.
+pub mod nas {}
 /// *Native public import from libqmi-glib-rs.*
 pub mod libqmi {
     pub use libqmi_glib_rs::{Device, NasClient, UimClient, VoiceClient, WdsClient, WmsClient};
@@ -109,9 +111,7 @@ pub mod error {
 /// Primitive Result Type from libqmi-glib-rs
 pub use libqmi_glib_rs::QmiResult;
 
-use engine::{GetMmsRequest, Request, SendMmsRequest, ShutDownRequest, SmsRequest};
-use engine::{StartNetworkRequest, StopNetworkRequest};
-use engine::{UimServiceRequest, VoiceServiceRequest, WdsServiceRequest, WmsServiceRequest};
+use engine::*;
 
 use futures::channel::mpsc;
 use futures::channel::oneshot;
@@ -169,6 +169,8 @@ pub enum Event {
     SmsStatusReport(sms::SmsStatusReport),
     /// Voice call event.
     VoiceCallEvent(Vec<voice::VoiceCall>),
+    /// Nas call event.
+    NasEvent(i8),
     /// Internal Error.
     InternalError(Error),
 }
@@ -387,6 +389,44 @@ impl EventStream {
             Ok(event) => Ok(Some(event)),
             Err(mpsc::TryRecvError::Empty) => Ok(None),
             Err(mpsc::TryRecvError::Closed) => Err(Error::EngineStopped),
+        }
+    }
+}
+
+macro_rules! with {
+    (
+        $(#[$meta:meta])*
+        $method_name:ident,
+        $client_type:ty,
+        $req_variant:path,
+        $req_inner_type:ident
+    ) => {
+        $(#[$meta])*
+        pub async fn $method_name<T, F, Fut>(&self, executor: F) -> SmResult<T>
+        where
+            T: Send + 'static,
+            F: FnOnce($client_type, tokio::runtime::Handle) -> Fut + Send + 'static,
+            Fut: Future<Output = T> + 'static,
+        {
+            let executor = Box::new(move |client, tokio_handle| {
+                let future = executor(client, tokio_handle);
+
+                Box::pin(async move {
+                    let response = future.await;
+                    Box::new(response) as ServiceResult
+                }) as ServiceFuture
+            });
+
+            let (reply_sender, reply_receiver) = oneshot::channel::<ServiceResult>();
+            self.inner
+                .engine_sender
+                .unbounded_send($req_variant($req_inner_type {
+                    executor,
+                    reply_sender,
+                }))?;
+
+            let response = reply_receiver.await?;
+            downcast_type(response)
         }
     }
 }
@@ -666,6 +706,7 @@ impl Client {
         reply_receiver.await?
     }
 
+    with!(
     /// Executes a request on the WDS service using [`libqmi::WdsClient`] from *libqmi-glib-rs*.
     ///
     /// The function body executes on the GLib runtime.
@@ -704,33 +745,9 @@ impl Client {
     /// #   Ok(())
     /// # }
     /// ```
-    pub async fn with_wds<T, F, Fut>(&self, executor: F) -> SmResult<T>
-    where
-        T: Send + 'static,
-        F: FnOnce(libqmi_glib_rs::WdsClient, tokio::runtime::Handle) -> Fut + Send + 'static,
-        Fut: Future<Output = T> + 'static,
-    {
-        let executor = Box::new(move |client, tokio_handle| {
-            let future = executor(client, tokio_handle);
+    with_wds, libqmi_glib_rs::WdsClient, Request::WdsService, WdsServiceRequest);
 
-            Box::pin(async move {
-                let response = future.await;
-                Box::new(response) as ServiceResult
-            }) as ServiceFuture
-        });
-
-        let (reply_sender, reply_receiver) = oneshot::channel::<ServiceResult>();
-        self.inner
-            .engine_sender
-            .unbounded_send(Request::WdsService(WdsServiceRequest {
-                executor,
-                reply_sender,
-            }))?;
-
-        let response = reply_receiver.await?;
-        downcast_type(response)
-    }
-
+    with!(
     /// Executes a request on the WMS service using [`libqmi::WmsClient`] from *libqmi-glib-rs*.
     ///
     /// The function body executes on the GLib runtime.
@@ -763,33 +780,9 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn with_wms<T, F, Fut>(&self, executor: F) -> SmResult<T>
-    where
-        T: Send + 'static,
-        F: FnOnce(libqmi_glib_rs::WmsClient, tokio::runtime::Handle) -> Fut + Send + 'static,
-        Fut: Future<Output = T> + 'static,
-    {
-        let executor = Box::new(move |client, tokio_handle| {
-            let future = executor(client, tokio_handle);
+    with_wms, libqmi_glib_rs::WmsClient, Request::WmsService, WmsServiceRequest);
 
-            Box::pin(async move {
-                let response = future.await;
-                Box::new(response) as ServiceResult
-            }) as ServiceFuture
-        });
-
-        let (reply_sender, reply_receiver) = oneshot::channel::<ServiceResult>();
-        self.inner
-            .engine_sender
-            .unbounded_send(Request::WmsService(WmsServiceRequest {
-                executor,
-                reply_sender,
-            }))?;
-
-        let response = reply_receiver.await?;
-        downcast_type(response)
-    }
-
+    with!(
     /// Executes a request on the UIM service using [`libqmi::UimClient`] from *libqmi-glib-rs*.
     ///
     /// The function body executes on the GLib runtime.
@@ -834,33 +827,9 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn with_uim<T, F, Fut>(&self, executor: F) -> SmResult<T>
-    where
-        T: Send + 'static,
-        F: FnOnce(libqmi_glib_rs::UimClient, tokio::runtime::Handle) -> Fut + Send + 'static,
-        Fut: Future<Output = T> + 'static,
-    {
-        let executor = Box::new(move |client, tokio_handle| {
-            let future = executor(client, tokio_handle);
+    with_uim, libqmi_glib_rs::UimClient, Request::UimService, UimServiceRequest);
 
-            Box::pin(async move {
-                let response = future.await;
-                Box::new(response) as ServiceResult
-            }) as ServiceFuture
-        });
-
-        let (reply_sender, reply_receiver) = oneshot::channel::<ServiceResult>();
-        self.inner
-            .engine_sender
-            .unbounded_send(Request::UimService(UimServiceRequest {
-                executor,
-                reply_sender,
-            }))?;
-
-        let response = reply_receiver.await?;
-        downcast_type(response)
-    }
-
+    with!(
     /// Executes a request on the QMI Voice service using [`libqmi::VoiceClient`] from *libqmi-glib-rs*.
     ///
     /// The function body executes on the GLib runtime.
@@ -922,33 +891,12 @@ impl Client {
     /// handler.await?;
     /// #    Ok(())
     /// # }
-    /// ```
-    pub async fn with_voice<T, F, Fut>(&self, executor: F) -> SmResult<T>
-    where
-        T: Send + 'static,
-        F: FnOnce(libqmi_glib_rs::VoiceClient, tokio::runtime::Handle) -> Fut + Send + 'static,
-        Fut: Future<Output = T> + 'static,
-    {
-        let executor = Box::new(move |client, tokio_handle| {
-            let future = executor(client, tokio_handle);
+    /// ```        
+    with_voice, libqmi_glib_rs::VoiceClient, Request::VoiceService, VoiceServiceRequest);
 
-            Box::pin(async move {
-                let response = future.await;
-                Box::new(response) as ServiceResult
-            }) as ServiceFuture
-        });
-
-        let (reply_sender, reply_receiver) = oneshot::channel::<ServiceResult>();
-        self.inner
-            .engine_sender
-            .unbounded_send(Request::VoiceService(VoiceServiceRequest {
-                executor,
-                reply_sender,
-            }))?;
-
-        let response = reply_receiver.await?;
-        downcast_type(response)
-    }
+    with!(
+    /// TODO : Documentation
+    with_nas, libqmi_glib_rs::NasClient, Request::NasService, NasServiceRequest);
 }
 
 type ServiceResult = Box<dyn std::any::Any + Send + 'static>;

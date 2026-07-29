@@ -1,8 +1,6 @@
-use dotenvy::dotenv;
-use qmi_sim_manager::ClientHandle;
+use tests::*;
 
-use std::env;
-use std::path::PathBuf;
+use qmi_sim_manager::ClientHandle;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -18,18 +16,4 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     client_handle.shutdown().await?;
     Ok(())
-}
-
-fn configure_tracing() {
-    use tracing::level_filters::LevelFilter;
-    use tracing_subscriber::{Layer, layer::SubscriberExt, util::SubscriberInitExt};
-
-    let stdout_layer = tracing_subscriber::fmt::layer()
-        .with_target(true)
-        .with_line_number(true)
-        .with_ansi(true)
-        .with_writer(std::io::stdout)
-        .with_filter(LevelFilter::DEBUG);
-
-    drop(tracing_subscriber::registry().with(stdout_layer).try_init());
 }
