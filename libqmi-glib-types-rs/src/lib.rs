@@ -26,7 +26,7 @@ where
     if len != 0 {
         let destination = (*array).data as *mut T;
 
-        for (index, value) in slice.into_iter().enumerate() {
+        for (index, value) in slice.iter().enumerate() {
             destination.add(index).write(*value);
         }
     }

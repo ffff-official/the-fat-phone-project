@@ -1,6 +1,7 @@
 use crate::{Error, Event, SmResult, engine, messaging, network};
 
-use libqmi_glib_rs::{Device, NasClient, UimClient, VoiceClient, WdsClient, WmsClient};
+use libqmi_glib_rs::nas_client::SignalInfo;
+use libqmi_glib_rs::{Device, DmsClient, NasClient, UimClient, VoiceClient, WdsClient, WmsClient};
 
 use futures::channel::mpsc;
 use futures::{FutureExt, select};
@@ -46,6 +47,7 @@ pub(crate) fn init_thread(
             let wds_client = WdsClient::new(&device).await?;
             let uim_client = UimClient::new(&device).await?;
             let mut voice_client = VoiceClient::new(&device).await?;
+            let dms_client = DmsClient::new(&device).await?;
             let mut nas_client = NasClient::new(&device).await?;
 
             let result = async {
@@ -70,26 +72,30 @@ pub(crate) fn init_thread(
                     .await?;
                 let mut sm_event_sender_clone = sm_event_sender.clone();
                 nas_client
-                    .set_event_report(Box::new(
-                        move |infos_res: Result<i8, libqmi_glib_rs::QmiError>| {
-                            let ret = sm_event_sender_clone.start_send(match infos_res {
-                                Ok(infos) => Event::NasEvent(infos),
-                                Err(e) => Event::InternalError(Error::Qmi(e)),
-                            });
-                            if let Err(e) = ret {
-                                tracing::error!(
-                                    "set_all_call_status sender : cannot send : {:?}",
-                                    e
-                                );
-                            }
-                        },
-                    ))
+                    .set_event_report(
+                        &dms_client,
+                        Box::new(
+                            move |infos_res: Result<SignalInfo, libqmi_glib_rs::QmiError>| {
+                                let ret = sm_event_sender_clone.start_send(match infos_res {
+                                    Ok(infos) => Event::NasEvent(infos),
+                                    Err(e) => Event::InternalError(Error::Qmi(e)),
+                                });
+                                if let Err(e) = ret {
+                                    tracing::error!(
+                                        "set_event_report sender : cannot send : {:?}",
+                                        e
+                                    );
+                                }
+                            },
+                        ),
+                    )
                     .await?;
 
                 let wds_client_clone = wds_client.clone();
                 let wms_client_clone = wms_client.clone();
                 let uim_client_clone = uim_client.clone();
                 let voice_client_clone = voice_client.clone();
+                let dms_client_clone = dms_client.clone();
                 let nas_client_clone = nas_client.clone();
                 let status_sender_clone = status_sender.clone();
                 let glib_control_loop = ctx_clone.spawn_local(async move {
@@ -99,6 +105,7 @@ pub(crate) fn init_thread(
                         wms_client_clone,
                         uim_client_clone,
                         voice_client_clone,
+                        dms_client_clone,
                         nas_client_clone,
                         tokio_handle,
                         engine_receiver,
@@ -127,6 +134,9 @@ pub(crate) fn init_thread(
 
             if let Err(e) = nas_client.close().await {
                 tracing::error!("Cannot close NAS client properly : {}", e);
+            }
+            if let Err(e) = dms_client.close().await {
+                tracing::error!("Cannot close DMS client properly : {}", e);
             }
             if let Err(e) = voice_client.close().await {
                 tracing::error!("Cannot close VOICE client properly : {}", e);

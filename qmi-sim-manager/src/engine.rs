@@ -1,7 +1,7 @@
 use crate::{Error, ServiceFuture, ServiceResult, SmResult, messaging, network};
 use messaging::{MmsContent, MmsStatus};
 
-use libqmi_glib_rs::{NasClient, UimClient, VoiceClient, WdsClient, WmsClient};
+use libqmi_glib_rs::{DmsClient, NasClient, UimClient, VoiceClient, WdsClient, WmsClient};
 use libqmi_glib_types_rs::WdsConnectionStatus;
 
 use futures::channel::mpsc;
@@ -34,6 +34,7 @@ pub enum Request {
     WmsService(WmsServiceRequest),
     UimService(UimServiceRequest),
     VoiceService(VoiceServiceRequest),
+    DmsService(DmsServiceRequest),
     NasService(NasServiceRequest),
 }
 
@@ -101,15 +102,19 @@ with_service_request!(WdsServiceRequest, WdsClient, "wds");
 with_service_request!(WmsServiceRequest, WmsClient, "wms");
 with_service_request!(UimServiceRequest, UimClient, "uim");
 with_service_request!(VoiceServiceRequest, VoiceClient, "voice");
+
+with_service_request!(DmsServiceRequest, DmsClient, "dms");
 with_service_request!(NasServiceRequest, NasClient, "nas");
 
 /// This control loop receives all external commands. It uses the various QMI services to process
 /// each command and then returns the result using a Request–Reply pattern.
+#[allow(clippy::too_many_arguments)]
 pub(crate) async fn glib_control_loop(
     mut wds_client: WdsClient,
     mut wms_client: WmsClient,
     uim_client: UimClient,
     voice_client: VoiceClient,
+    dms_client: DmsClient,
     nas_client: NasClient,
     tokio_handle: tokio::runtime::Handle,
     mut mpsc_receiver: mpsc::UnboundedReceiver<Request>,
@@ -191,6 +196,11 @@ pub(crate) async fn glib_control_loop(
                 Request::VoiceService(req) => {
                     let func = req.executor;
                     let ret = func(voice_client.clone(), tokio_handle.clone()).await;
+                    req_send(req.reply_sender, ret);
+                }
+                Request::DmsService(req) => {
+                    let func = req.executor;
+                    let ret = func(dms_client.clone(), tokio_handle.clone()).await;
                     req_send(req.reply_sender, ret);
                 }
                 Request::NasService(req) => {

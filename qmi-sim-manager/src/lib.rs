@@ -86,8 +86,14 @@ pub mod uim {
     pub use libqmi_glib_types_rs::MessageUimGetCardStatusOutputCardStatusCardsElement;
     pub use libqmi_glib_types_rs::MessageUimGetCardStatusOutputCardStatusCardsElementApplicationsElementV2;
 }
+/// Types related to DMS module.
+pub mod dms {
+    pub use libqmi_glib_rs::dms_client::*;
+}
 /// Types related to NAS module.
-pub mod nas {}
+pub mod nas {
+    pub use libqmi_glib_rs::nas_client::*;
+}
 /// *Native public import from libqmi-glib-rs.*
 pub mod libqmi {
     pub use libqmi_glib_rs::{Device, NasClient, UimClient, VoiceClient, WdsClient, WmsClient};
@@ -170,7 +176,7 @@ pub enum Event {
     /// Voice call event.
     VoiceCallEvent(Vec<voice::VoiceCall>),
     /// Nas call event.
-    NasEvent(i8),
+    NasEvent(nas::SignalInfo),
     /// Internal Error.
     InternalError(Error),
 }
@@ -893,6 +899,10 @@ impl Client {
     /// # }
     /// ```        
     with_voice, libqmi_glib_rs::VoiceClient, Request::VoiceService, VoiceServiceRequest);
+
+    with!(
+    /// TODO : Documentation
+    with_dms, libqmi_glib_rs::DmsClient, Request::DmsService, DmsServiceRequest);
 
     with!(
     /// TODO : Documentation
