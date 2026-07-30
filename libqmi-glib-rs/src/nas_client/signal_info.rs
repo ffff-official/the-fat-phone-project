@@ -365,7 +365,6 @@ unsafe extern "C" fn signal_info_cb(
         output, &mut rssi, &mut error,
     );
     if ret == GTRUE {
-        qmi_indication_nas_signal_info_output_unref(output);
         return cb(Ok(SignalInfo::Gsm { rssi }));
     }
     g_clear_error(&mut error);
@@ -377,7 +376,6 @@ unsafe extern "C" fn signal_info_cb(
         output, &mut rssi, &mut ecio, &mut error,
     );
     if ret == GTRUE {
-        qmi_indication_nas_signal_info_output_unref(output);
         return cb(Ok(SignalInfo::Cdma { rssi, ecio }));
     }
     g_clear_error(&mut error);
@@ -391,7 +389,6 @@ unsafe extern "C" fn signal_info_cb(
         output, &mut rssi, &mut ecio, &mut sinr, &mut io, &mut error,
     );
     if ret == GTRUE {
-        qmi_indication_nas_signal_info_output_unref(output);
         return cb(Ok(SignalInfo::Hdr {
             rssi,
             ecio,
@@ -420,12 +417,10 @@ unsafe extern "C" fn signal_info_cb(
         } else {
             Some(rscp)
         };
-        qmi_indication_nas_signal_info_output_unref(output);
         return cb(Ok(SignalInfo::Umts { rssi, ecio, rscp }));
     }
     #[cfg(not(feature = "v1_34"))]
     if ret == GTRUE {
-        qmi_indication_nas_signal_info_output_unref(output);
         return cb(Ok(SignalInfo::Umts { rssi, ecio }));
     }
     g_clear_error(&mut error);
@@ -436,7 +431,6 @@ unsafe extern "C" fn signal_info_cb(
         output, &mut rssi, &mut error,
     );
     if ret == GTRUE {
-        qmi_indication_nas_signal_info_output_unref(output);
         return cb(Ok(SignalInfo::TdScdma { rssi }));
     }
     g_clear_error(&mut error);
@@ -450,7 +444,6 @@ unsafe extern "C" fn signal_info_cb(
         output, &mut rssi, &mut rsrq, &mut rsrp, &mut snr, &mut error,
     );
     if ret == GTRUE {
-        qmi_indication_nas_signal_info_output_unref(output);
         return cb(Ok(SignalInfo::Lte {
             rssi,
             rsrq,
@@ -472,7 +465,6 @@ unsafe extern "C" fn signal_info_cb(
         let ret = qmi_indication_nas_signal_info_output_get_5g_signal_strength_extended(
             output, &mut rsrq, &mut error,
         );
-        qmi_indication_nas_signal_info_output_unref(output);
         let rsrq = if ret == GFALSE {
             g_clear_error(&mut error);
             None
@@ -483,7 +475,6 @@ unsafe extern "C" fn signal_info_cb(
     }
     g_clear_error(&mut error);
 
-    qmi_indication_nas_signal_info_output_unref(output);
     cb(Err(QmiError::new("All errors occured", "signal_info_cb")))
 }
 

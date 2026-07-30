@@ -1,4 +1,4 @@
-pub use libqmi_glib_types_rs::{NasEvdoSinrLevel, NasRadioInterface};
+pub use libqmi_glib_types_rs::{NasEvdoSinrLevel, NasRadioInterface, NasRatModePreference};
 pub use signal_info::SignalInfo;
 
 pub mod signal_info;
@@ -78,6 +78,23 @@ impl NasClient {
     new_client_impl!(NasClient, QmiClientNas, libqmi_glib_types_rs::Service::Nas);
 
     close_client_impl!("nas");
+
+    pub async fn get_mode_preference(&self) -> QmiResult<NasRatModePreference> {
+        let (tx, rx) = oneshot::channel::<QmiResult<NasRatModePreference>>();
+
+        unsafe {
+            qmi_client_nas_get_system_selection_preference(
+                self.client.as_ptr(),
+                null_mut(),
+                OPERATION_TIMEOUT,
+                null_mut(),
+                Some(get_mode_preference_cb),
+                Box::into_raw(Box::new(tx)).cast(),
+            );
+        }
+
+        rx.await.map_err(|_| QmiError::cb_droped())?
+    }
 
     pub async fn set_event_report(
         &mut self,
@@ -166,6 +183,60 @@ allocate_client_callback!(allocate_client_cb, QmiClientNas, "allocate NAS client
 
 release_client_callback!(release_client_cb, "release NAS client");
 
+struct OutputGuard(*mut QmiMessageNasGetSystemSelectionPreferenceOutput);
+
+impl Drop for OutputGuard {
+    fn drop(&mut self) {
+        unsafe {
+            qmi_message_nas_get_system_selection_preference_output_unref(self.0);
+        }
+    }
+}
+
+unsafe extern "C" fn get_mode_preference_cb(
+    client: *mut GObject,
+    res: *mut GAsyncResult,
+    user_data: *mut c_void,
+) {
+    let sender =
+        Box::from_raw(user_data.cast::<oneshot::Sender<QmiResult<NasRatModePreference>>>());
+
+    let result = get_mode_preference_result(client, res);
+
+    drop(sender.send(result).inspect_err(cannot_send));
+}
+
+unsafe fn get_mode_preference_result(
+    client: *mut GObject,
+    res: *mut GAsyncResult,
+) -> QmiResult<NasRatModePreference> {
+    let mut error: *mut GError = null_mut();
+
+    let output =
+        qmi_client_nas_get_system_selection_preference_finish(client.cast(), res, &mut error);
+    if output.is_null() {
+        return Err((error, "get_mode_preference_cb finish").into());
+    }
+
+    let _guard = OutputGuard(output);
+
+    let ret = qmi_message_nas_get_system_selection_preference_output_get_result(output, &mut error);
+    if ret == GFALSE {
+        return Err((error, "get_mode_preference_cb get result").into());
+    }
+
+    let mut mode_preference = 0;
+    let ret = qmi_message_nas_get_system_selection_preference_output_get_mode_preference(
+        output,
+        &mut mode_preference,
+        &mut error,
+    );
+    if ret == GFALSE {
+        return Err((error, "get_mode_preference_cb output").into());
+    }
+    Ok(from_glib(mode_preference))
+}
+
 unsafe extern "C" fn set_event_report_cb(
     client: *mut GObject,
     res: *mut GAsyncResult,
@@ -234,8 +305,6 @@ unsafe extern "C" fn event_report_cb(
     if !error.is_null() {
         g_clear_error(&mut error);
     }
-
-    qmi_indication_nas_event_report_output_unref(output);
 
     fn ret_or<T>(ret: i32, value: T) -> Option<T> {
         if ret == GFALSE { None } else { Some(value) }

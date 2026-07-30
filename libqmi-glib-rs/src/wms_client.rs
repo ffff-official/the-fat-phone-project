@@ -10,6 +10,7 @@ use gobject_sys::{GClosure, GObject};
 use libqmi_glib_types_rs::MessageWmsGetRoutesOutputRouteListElement;
 use libqmi_glib_types_rs::glib::translate::FromGlib;
 use libqmi_glib_types_rs::glib::translate::IntoGlib;
+use libqmi_glib_types_rs::slice_to_garray;
 use libqmi_glib_types_rs::{WmsGsmUmtsRpCause, WmsGsmUmtsTpCause, WmsMessageFormat};
 
 use std::cell::RefCell;
@@ -140,25 +141,20 @@ impl WmsClient {
             unsafe { qmi_message_wms_set_routes_input_new() };
         let mut error: *mut GError = null_mut();
 
-        let mut routes = routes
+        let routes = routes
             .into_iter()
             .map(|route| route.into())
             .collect::<Vec<QmiMessageWmsGetRoutesOutputRouteListElement>>();
 
-        let mut value_route_list = GArray {
-            data: routes.as_mut_ptr().cast(),
-            len: routes.len() as _,
-        };
+        let value_route_list = unsafe { slice_to_garray(routes.as_slice()) };
+
         let ret = unsafe {
-            qmi_message_wms_set_routes_input_set_route_list(
-                input,
-                &mut value_route_list,
-                &mut error,
-            )
+            qmi_message_wms_set_routes_input_set_route_list(input, value_route_list, &mut error)
         };
         if ret == 0 {
             unsafe {
                 qmi_message_wms_set_routes_input_unref(input);
+                g_array_unref(value_route_list);
             }
             Err((error, "set routes"))?;
         }
@@ -173,6 +169,7 @@ impl WmsClient {
                 Box::into_raw(Box::new(tx)).cast(),
             );
             qmi_message_wms_set_routes_input_unref(input);
+            g_array_unref(value_route_list);
         }
         rx.await.map_err(|_| QmiError::cb_droped())?
     }

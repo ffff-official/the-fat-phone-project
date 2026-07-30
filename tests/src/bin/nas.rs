@@ -19,6 +19,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
     println!("{:#?}", result?);
 
+    let result = client
+        .with_nas(async move |client, _tk| client.get_mode_preference().await)
+        .await?;
+    println!("{:#?}", result?);
+
     let mut events = client_handle.event_stream()?;
     let h = tokio::spawn(async move {
         // Process incoming events, such as received CALL messages.
