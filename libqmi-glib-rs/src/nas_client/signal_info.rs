@@ -1,49 +1,6 @@
 use super::*;
 
-#[rustfmt::skip]
-const SETTERS: &[RadioType] = &[
-    RadioType {
-        capability: DmsRadioInterface::Gsm,
-        functions: &[qmi_message_nas_config_signal_info_v2_input_set_gsm_rssi_delta]
-    },
-    RadioType {
-        capability: DmsRadioInterface::Cdma20001x,
-        functions: &[qmi_message_nas_config_signal_info_v2_input_set_cdma_ecio_delta,
-                     qmi_message_nas_config_signal_info_v2_input_set_cdma_rssi_delta]
-    },
-    RadioType {
-        capability: DmsRadioInterface::Evdo,
-        functions: &[qmi_message_nas_config_signal_info_v2_input_set_hdr_rssi_delta,
-                     qmi_message_nas_config_signal_info_v2_input_set_hdr_ecio_delta,
-                     qmi_message_nas_config_signal_info_v2_input_set_hdr_sinr_delta,
-                     qmi_message_nas_config_signal_info_v2_input_set_hdr_io_delta]
-    },
-    RadioType {
-        capability: DmsRadioInterface::Umts,
-        functions: &[qmi_message_nas_config_signal_info_v2_input_set_wcdma_rssi_delta,
-                     qmi_message_nas_config_signal_info_v2_input_set_wcdma_ecio_delta,
-                     #[cfg(feature = "v1_34")] #[cfg_attr(docsrs, doc(cfg(feature = "v1_34")))] qmi_message_nas_config_signal_info_v2_input_set_wcdma_rscp_delta]
-    },
-    RadioType {
-        capability: DmsRadioInterface::Lte,
-        functions: &[qmi_message_nas_config_signal_info_v2_input_set_lte_rsrp_delta,
-                     qmi_message_nas_config_signal_info_v2_input_set_lte_rsrq_delta,
-                     qmi_message_nas_config_signal_info_v2_input_set_lte_rssi_delta,
-                     qmi_message_nas_config_signal_info_v2_input_set_lte_snr_delta]
-    },
-    RadioType {
-        capability: DmsRadioInterface::Tds,
-        functions: &[],
-    },
-    RadioType {
-        capability: DmsRadioInterface::_5gnr,
-        functions: &[qmi_message_nas_config_signal_info_v2_input_set_nr5g_rsrp_delta,
-                     qmi_message_nas_config_signal_info_v2_input_set_nr5g_snr_delta,
-                     qmi_message_nas_config_signal_info_v2_input_set_nr5g_rsrq_delta]
-    },
-];
-
-type SignalInfoCallback = Box<dyn FnMut(QmiResult<SignalInfo>)>;
+use gobject_sys::GClosure;
 
 /// Signal quality information for a specific radio access technology.
 ///
@@ -132,6 +89,51 @@ pub enum SignalInfo {
 //     pub sinr: i32,
 // }
 
+#[rustfmt::skip]
+const SETTERS: &[RadioType] = &[
+    RadioType {
+        capability: DmsRadioInterface::Gsm,
+        functions: &[qmi_message_nas_config_signal_info_v2_input_set_gsm_rssi_delta]
+    },
+    RadioType {
+        capability: DmsRadioInterface::Cdma20001x,
+        functions: &[qmi_message_nas_config_signal_info_v2_input_set_cdma_ecio_delta,
+                     qmi_message_nas_config_signal_info_v2_input_set_cdma_rssi_delta]
+    },
+    RadioType {
+        capability: DmsRadioInterface::Evdo,
+        functions: &[qmi_message_nas_config_signal_info_v2_input_set_hdr_rssi_delta,
+                     qmi_message_nas_config_signal_info_v2_input_set_hdr_ecio_delta,
+                     qmi_message_nas_config_signal_info_v2_input_set_hdr_sinr_delta,
+                     qmi_message_nas_config_signal_info_v2_input_set_hdr_io_delta]
+    },
+    RadioType {
+        capability: DmsRadioInterface::Umts,
+        functions: &[qmi_message_nas_config_signal_info_v2_input_set_wcdma_rssi_delta,
+                     qmi_message_nas_config_signal_info_v2_input_set_wcdma_ecio_delta,
+                     #[cfg(feature = "v1_34")] #[cfg_attr(docsrs, doc(cfg(feature = "v1_34")))] qmi_message_nas_config_signal_info_v2_input_set_wcdma_rscp_delta]
+    },
+    RadioType {
+        capability: DmsRadioInterface::Lte,
+        functions: &[qmi_message_nas_config_signal_info_v2_input_set_lte_rsrp_delta,
+                     qmi_message_nas_config_signal_info_v2_input_set_lte_rsrq_delta,
+                     qmi_message_nas_config_signal_info_v2_input_set_lte_rssi_delta,
+                     qmi_message_nas_config_signal_info_v2_input_set_lte_snr_delta]
+    },
+    RadioType {
+        capability: DmsRadioInterface::Tds,
+        functions: &[],
+    },
+    RadioType {
+        capability: DmsRadioInterface::_5gnr,
+        functions: &[qmi_message_nas_config_signal_info_v2_input_set_nr5g_rsrp_delta,
+                     qmi_message_nas_config_signal_info_v2_input_set_nr5g_snr_delta,
+                     qmi_message_nas_config_signal_info_v2_input_set_nr5g_rsrq_delta]
+    },
+];
+
+type SignalInfoCallback = Box<dyn FnMut(QmiResult<SignalInfo>)>;
+
 #[derive(Debug)]
 #[rustfmt::skip]
 struct RadioType {
@@ -141,6 +143,7 @@ struct RadioType {
 }
 
 impl NasClient {
+    // TODO : Documentation
     pub async fn set_signal_info(
         &mut self,
         dms_client: &DmsClient,

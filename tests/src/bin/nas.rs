@@ -1,7 +1,7 @@
 use futures::StreamExt;
 use tests::*;
 
-use qmi_sim_manager::{ClientHandle, Event};
+use qmi_sim_manager::{ClientHandle, Event, nas::NasRatModePreference};
 
 use std::time::Duration;
 
@@ -20,7 +20,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("{:#?}", result?);
 
     let result = client
-        .with_nas(async move |client, _tk| client.get_mode_preference().await)
+        .with_nas(async move |client, _tk| client.get_preferred_radio_technologies().await)
         .await?;
     println!("{:#?}", result?);
 
@@ -37,7 +37,44 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
-    tokio::time::sleep(Duration::from_secs(60)).await; // Keep the client running for one minute before shutting it down.
+    tokio::time::sleep(Duration::from_secs(20)).await;
+    let tech: NasRatModePreference = NasRatModePreference::UMTS;
+    let result = client
+        .with_nas(async move |mut client, _tk| client.set_preferred_radio_technologies(tech).await)
+        .await?;
+    println!("{:#?}", result?);
+
+    let result = client
+        .with_nas(async move |client, _tk| client.get_preferred_radio_technologies().await)
+        .await?;
+    println!("{:#?}", result?);
+
+    tokio::time::sleep(Duration::from_secs(20)).await;
+    let tech: NasRatModePreference = NasRatModePreference::GSM;
+    let result = client
+        .with_nas(async move |mut client, _tk| client.set_preferred_radio_technologies(tech).await)
+        .await?;
+    println!("{:#?}", result?);
+
+    let result = client
+        .with_nas(async move |client, _tk| client.get_preferred_radio_technologies().await)
+        .await?;
+    println!("{:#?}", result?);
+
+    tokio::time::sleep(Duration::from_secs(20)).await;
+    let tech: NasRatModePreference = NasRatModePreference::LTE;
+    let result = client
+        .with_nas(async move |mut client, _tk| client.set_preferred_radio_technologies(tech).await)
+        .await?;
+    println!("{:#?}", result?);
+
+    let result = client
+        .with_nas(async move |client, _tk| client.get_preferred_radio_technologies().await)
+        .await?;
+    println!("{:#?}", result?);
+
+    tokio::time::sleep(Duration::from_secs(20)).await;
+
     client_handle.shutdown().await?;
     h.await?;
     Ok(())

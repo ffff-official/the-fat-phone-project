@@ -1,7 +1,7 @@
 use crate::{Error, Event, SmResult, engine, messaging, network};
 
 use libqmi_glib_rs::nas_client::NasEventReport;
-use libqmi_glib_rs::nas_client::signal_info::SignalInfo;
+use libqmi_glib_rs::nas_client::SignalInfo;
 use libqmi_glib_rs::{Device, DmsClient, NasClient, UimClient, VoiceClient, WdsClient, WmsClient};
 
 use futures::channel::mpsc;
