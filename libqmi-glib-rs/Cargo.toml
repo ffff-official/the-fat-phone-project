@@ -21,3 +21,10 @@ futures.workspace = true
 
 [dev-dependencies]
 glib.workspace = true
+
+[features]
+v1_34 = ["libqmi-glib-sys/v1_34", "libqmi-glib-types-rs/v1_34"]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

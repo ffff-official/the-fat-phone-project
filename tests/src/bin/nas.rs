@@ -25,8 +25,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         while let Some(event) = events.next().await {
             if let Event::NasEvent(value) = &event {
                 println!("nas event : {:?}", value);
+            } else if let Event::NasSignalInfo(value) = &event {
+                println!("Other signal info : {:?}", value);
             } else {
-                println!("Other event : {:?}", event);
             }
         }
     });

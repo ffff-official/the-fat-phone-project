@@ -43,6 +43,7 @@
 //!     }
 //! }
 //! ```
+#![cfg_attr(docsrs, feature(doc_cfg))]
 #![allow(unsafe_op_in_unsafe_fn)] // Warnings on unsafe_op_in_unsafe_fn is a shitty idea for a crate of this kind.
 
 #[doc(hidden)]

@@ -1,6 +1,9 @@
 pub use libqmi_glib_types_rs::{NasEvdoSinrLevel, NasRadioInterface};
+pub use signal_info::SignalInfo;
 
-use futures::channel::oneshot;
+pub mod signal_info;
+
+use futures::channel::oneshot::{self, Sender};
 use gio_sys::GAsyncResult;
 use glib_sys::{GFALSE, GTRUE, gboolean};
 use gobject_sys::{GClosure, GObject};
@@ -24,7 +27,7 @@ pub struct NasClient {
     data: Rc<RefCell<Option<()>>>,
 }
 
-type EventReportCallback = Box<dyn FnMut(QmiResult<SignalInfo>)>;
+type EventReportCallback = Box<dyn FnMut(QmiResult<NasEventReport>)>;
 
 client_drop_impl!(NasClient);
 
@@ -32,7 +35,7 @@ client_clone_impl!(NasClient);
 
 /// TODO : Documentation
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
-pub struct SignalInfo {
+pub struct NasEventReport {
     pub radio_interface: NasRadioInterface,
 
     // common
@@ -51,7 +54,7 @@ pub struct SignalInfo {
     // pub ss_sinr: Option<i8>,
 }
 
-impl Default for SignalInfo {
+impl Default for NasEventReport {
     fn default() -> Self {
         Self {
             radio_interface: NasRadioInterface::Unknown,
@@ -237,7 +240,7 @@ unsafe extern "C" fn event_report_cb(
     fn ret_or<T>(ret: i32, value: T) -> Option<T> {
         if ret == GFALSE { None } else { Some(value) }
     }
-    let response = SignalInfo {
+    let response = NasEventReport {
         radio_interface: from_glib(radio_interface),
         rssi: ret_or(ret_rssi, rssi),
         ecio: ret_or(ret_ecio, ecio),

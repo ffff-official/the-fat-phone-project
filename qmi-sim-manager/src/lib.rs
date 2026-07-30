@@ -176,7 +176,9 @@ pub enum Event {
     /// Voice call event.
     VoiceCallEvent(Vec<voice::VoiceCall>),
     /// Nas call event.
-    NasEvent(nas::SignalInfo),
+    NasEvent(nas::NasEventReport),
+    /// Nas call event.
+    NasSignalInfo(nas::SignalInfo),
     /// Internal Error.
     InternalError(Error),
 }

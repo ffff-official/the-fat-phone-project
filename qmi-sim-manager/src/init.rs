@@ -1,6 +1,7 @@
 use crate::{Error, Event, SmResult, engine, messaging, network};
 
-use libqmi_glib_rs::nas_client::SignalInfo;
+use libqmi_glib_rs::nas_client::NasEventReport;
+use libqmi_glib_rs::nas_client::signal_info::SignalInfo;
 use libqmi_glib_rs::{Device, DmsClient, NasClient, UimClient, VoiceClient, WdsClient, WmsClient};
 
 use futures::channel::mpsc;
@@ -75,7 +76,7 @@ pub(crate) fn init_thread(
                     .set_event_report(
                         &dms_client,
                         Box::new(
-                            move |infos_res: Result<SignalInfo, libqmi_glib_rs::QmiError>| {
+                            move |infos_res: Result<NasEventReport, libqmi_glib_rs::QmiError>| {
                                 let ret = sm_event_sender_clone.start_send(match infos_res {
                                     Ok(infos) => Event::NasEvent(infos),
                                     Err(e) => Event::InternalError(Error::Qmi(e)),
@@ -83,6 +84,26 @@ pub(crate) fn init_thread(
                                 if let Err(e) = ret {
                                     tracing::error!(
                                         "set_event_report sender : cannot send : {:?}",
+                                        e
+                                    );
+                                }
+                            },
+                        ),
+                    )
+                    .await?;
+                let mut sm_event_sender_clone = sm_event_sender.clone();
+                nas_client
+                    .set_signal_info(
+                        &dms_client,
+                        Box::new(
+                            move |infos_res: Result<SignalInfo, libqmi_glib_rs::QmiError>| {
+                                let ret = sm_event_sender_clone.start_send(match infos_res {
+                                    Ok(infos) => Event::NasSignalInfo(infos),
+                                    Err(e) => Event::InternalError(Error::Qmi(e)),
+                                });
+                                if let Err(e) = ret {
+                                    tracing::error!(
+                                        "set_signal_info sender : cannot send : {:?}",
                                         e
                                     );
                                 }
