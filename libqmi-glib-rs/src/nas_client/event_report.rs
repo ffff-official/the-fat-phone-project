@@ -4,21 +4,21 @@ use gobject_sys::GClosure;
 
 type EventReportCallback = Box<dyn FnMut(QmiResult<NasEventReport>)>;
 
-/// TODO : Documentation
+/// Signal measurements reported by a NAS event report.
+///
+/// The available measurements depend on the radio interface and on the
+/// information provided by the modem for the current radio technology.
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub struct NasEventReport {
+    /// Radio interface associated with the reported signal measurements.
     pub radio_interface: NasRadioInterface,
-
-    // common
+    /// Received Signal Strength Indicator (RSSI), when available.
     pub rssi: Option<u8>,
-
-    // 3G
+    /// Ec/Io signal quality measurement, when available.
     pub ecio: Option<u8>,
-
-    // 3G China
+    /// EV-DO signal-to-interference-plus-noise ratio level, when available.
     pub sinr: Option<NasEvdoSinrLevel>,
-
-    // 4G LTE
+    /// LTE Reference Signal Received Power (RSRP), when available.
     pub lte_rsrp: Option<i16>,
 }
 
@@ -35,7 +35,18 @@ impl Default for NasEventReport {
 }
 
 impl NasClient {
-    // TODO : Documentation
+    /// Configures and enables NAS event report indications.
+    ///
+    /// The callback is invoked whenever the modem emits a NAS event report with
+    /// signal information supported by the current radio technology.
+    ///
+    /// The DMS client is used to determine the radio interfaces supported by the
+    /// device so that only compatible signal reports are requested.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the event report configuration cannot be applied to the
+    /// modem.
     pub async fn set_event_report(
         &mut self,
         dms_client: &DmsClient,

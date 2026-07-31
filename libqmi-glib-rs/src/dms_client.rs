@@ -344,7 +344,10 @@ macro_rules! setter_with_writer {
 }
 
 setter!(
-    // TODO : Documentation
+    /// Sets the operating mode of the device.
+    ///
+    /// The requested operating mode determines the operational state of the
+    /// modem, such as online, low-power, offline, or reset mode.
     set_operating_mode,
     qmi_message_dms_set_operating_mode_input_set_mode,
     DmsOperatingMode,
@@ -358,7 +361,10 @@ setter!(
 );
 
 getter!(
-    // TODO : Documentation
+    /// Retrieves the current operating mode of the device.
+    ///
+    /// The operating mode indicates the current operational state of the modem,
+    /// such as online, low-power, offline, or reset mode.
     get_operating_mode,
     qmi_message_dms_get_operating_mode_output_get_mode,
     DmsOperatingMode,
@@ -369,13 +375,18 @@ getter!(
     "get_operating_mode"
 );
 
-/// TODO : Documentation
+/// Describes the capabilities reported by the device.
 #[derive(Debug, Clone)]
 pub struct DmsCapabilities {
+    /// Maximum transmit channel rate supported by the device, in bits per second.
     pub max_tx_channel_rate: u32,
+    /// Maximum receive channel rate supported by the device, in bits per second.
     pub max_rx_channel_rate: u32,
+    /// Data service capability reported by the device.
     pub data_service_capability: DmsDataServiceCapability,
+    /// SIM capability reported by the device.
     pub sim_capability: DmsSimCapability,
+    /// Radio interfaces supported by the device.
     pub radio_interfaces: Vec<DmsRadioInterface>,
 }
 
@@ -426,7 +437,11 @@ unsafe fn get_capabilities_extractor(
 }
 
 getter_with_extractor!(
-    // TODO : Documentation
+    /// Retrieves the capabilities reported by the device.
+    ///
+    /// The returned information includes the maximum transmit and receive
+    /// channel rates, data service and SIM capabilities, and the list of
+    /// radio interfaces supported by the modem.
     get_capabilities,
     get_capabilities_extractor,
     DmsCapabilities,
@@ -436,7 +451,6 @@ getter_with_extractor!(
     qmi_message_dms_get_capabilities_output_unref,
     "get_capabilities"
 );
-
 unsafe fn get_manufacturer_extractor(
     output: *mut QmiMessageDmsGetManufacturerOutput,
     error: *mut *mut GError,
@@ -453,7 +467,9 @@ unsafe fn get_manufacturer_extractor(
 }
 
 getter_with_extractor!(
-    // TODO : Documentation
+    /// Retrieves the manufacturer name reported by the device.
+    ///
+    /// The returned string identifies the manufacturer of the modem.
     get_manufacturer,
     get_manufacturer_extractor,
     String,
@@ -480,7 +496,9 @@ unsafe fn get_model_extractor(
 }
 
 getter_with_extractor!(
-    // TODO : Documentation
+    /// Retrieves the model identifier reported by the device.
+    ///
+    /// The returned string identifies the modem model as reported by the device.
     get_model,
     get_model_extractor,
     String,
@@ -507,7 +525,10 @@ unsafe fn get_revision_extractor(
 }
 
 getter_with_extractor!(
-    // TODO : Documentation
+    /// Retrieves the firmware revision reported by the device.
+    ///
+    /// The returned string identifies the revision of the firmware currently
+    /// running on the modem.
     get_revision,
     get_revision_extractor,
     String,
@@ -534,7 +555,9 @@ unsafe fn get_hardware_revision_extractor(
 }
 
 getter_with_extractor!(
-    // TODO : Documentation
+    /// Retrieves the hardware revision reported by the device.
+    ///
+    /// The returned string identifies the hardware revision of the modem.
     get_hardware_revision,
     get_hardware_revision_extractor,
     String,
@@ -561,7 +584,9 @@ unsafe fn get_software_version_extractor(
 }
 
 getter_with_extractor!(
-    // TODO : Documentation
+    /// Retrieves the software version reported by the device.
+    ///
+    /// The returned string identifies the software version of the modem.
     get_software_version,
     get_software_version_extractor,
     String,
@@ -588,7 +613,10 @@ unsafe fn get_factory_sku_extractor(
 }
 
 getter_with_extractor!(
-    // TODO : Documentation
+    /// Retrieves the factory SKU reported by the device.
+    ///
+    /// The returned string identifies the device's factory stock keeping unit
+    /// (SKU), when provided by the modem.
     get_factory_sku,
     get_factory_sku_extractor,
     String,
@@ -599,12 +627,19 @@ getter_with_extractor!(
     "get_factory_sku"
 );
 
-/// TODO : Documentation
+/// Device identifiers reported by the modem.
+///
+/// Depending on the device and supported radio technologies, some identifiers
+/// may not be available.
 #[derive(Debug, Clone, Default)]
 pub struct DmsIds {
+    /// Electronic Serial Number (ESN), if available.
     pub esn: Option<String>,
+    /// International Mobile Equipment Identity (IMEI), if available.
     pub imei: Option<String>,
+    /// Mobile Equipment Identifier (MEID), if available.
     pub meid: Option<String>,
+    /// IMEI software version, if available.
     pub imei_software_version: Option<String>,
 }
 
@@ -642,7 +677,10 @@ unsafe fn get_ids_extractor(
 }
 
 getter_with_extractor!(
-    // TODO : Documentation
+    /// Retrieves the device identifiers reported by the modem.
+    ///
+    /// Depending on the device and supported radio technologies, some
+    /// identifiers may not be available.
     get_ids,
     get_ids_extractor,
     DmsIds,
@@ -653,10 +691,12 @@ getter_with_extractor!(
     "get_ids"
 );
 
-/// TODO : Documentation
+/// Power state information reported by the device.
 #[derive(Debug, Clone)]
 pub struct DmsPowerStateLevel {
+    /// Flags describing the current power state of the device.
     pub flags: DmsPowerState,
+    /// Current battery level reported by the device, as a percentage.
     pub battery_level: u8,
 }
 
@@ -688,7 +728,10 @@ unsafe fn get_power_state_extractor(
 }
 
 getter_with_extractor!(
-    // TODO : Documentation
+    /// Retrieves the current power state information reported by the device.
+    ///
+    /// The returned information includes the device power state flags and
+    /// the current battery level.
     get_power_state,
     get_power_state_extractor,
     DmsPowerStateLevel,
@@ -699,10 +742,12 @@ getter_with_extractor!(
     "get_power_state"
 );
 
-/// TODO : Documentation
+/// Preferred Roaming List (PRL) version information reported by the device.
 #[derive(Debug, Clone, Default)]
 pub struct PrlVersion {
+    /// Version number of the Preferred Roaming List (PRL).
     pub version: u16,
+    /// Whether the device is configured to use only systems defined in the PRL.
     pub prl_only_preference: bool,
 }
 
@@ -726,7 +771,10 @@ unsafe fn get_prl_version_extractor(
 }
 
 getter_with_extractor!(
-    // TODO : Documentation
+    /// Retrieves the Preferred Roaming List (PRL) version information.
+    ///
+    /// The returned information includes the PRL version and whether the
+    /// device is configured to use only systems defined in the PRL.
     get_prl_version,
     get_prl_version_extractor,
     PrlVersion,
@@ -737,12 +785,19 @@ getter_with_extractor!(
     "get_prl_version"
 );
 
-/// TODO : Documentation
+/// Time information reported by the device.
 #[derive(Debug, Clone)]
 pub struct DmsTime {
+    /// Source used by the device to obtain its time information.
     pub time_source: DmsTimeSource,
+    /// Device time, expressed as the number of 1.25 ms time units elapsed
+    /// since January 6, 1980.
     pub device_time: u64,
+    /// System time, expressed as the number of milliseconds elapsed
+    /// since January 6, 1980.
     pub system_time: u64,
+    /// User time, expressed as the number of milliseconds elapsed
+    /// since January 6, 1980.
     pub user_time: u64,
 }
 
@@ -781,7 +836,10 @@ unsafe fn get_time_extractor(
 }
 
 getter_with_extractor!(
-    // TODO : Documentation
+    /// Retrieves the current time information reported by the device.
+    ///
+    /// The returned information includes the device, system, and user time,
+    /// as well as the source used to obtain the time information.
     get_time,
     get_time_extractor,
     DmsTime,
@@ -793,7 +851,9 @@ getter_with_extractor!(
 );
 
 getter!(
-    // TODO : Documentation
+    /// Retrieves the current user lock state of the device.
+    ///
+    /// Returns `true` if the user lock is enabled, or `false` if it is disabled.
     get_user_lock_state,
     qmi_message_dms_get_user_lock_state_output_get_enabled,
     bool,
@@ -804,10 +864,14 @@ getter!(
     "get_user_lock_state"
 );
 
-/// TODO : Documeentation
+/// Configuration used to enable or disable the device user lock.
+///
+/// The current user lock code is required to authorize the requested change.
 #[derive(Debug, Clone)]
 pub struct DmsUserLockState {
+    /// Whether the user lock should be enabled.
     pub enabled: bool,
+    /// Current user lock code used to authorize the operation.
     pub code: String,
 }
 
@@ -831,7 +895,9 @@ unsafe fn set_user_lock_state_writer(
 }
 
 setter_with_writer!(
-    // TODO : Documentation
+    /// Enables or disables the device user lock.
+    ///
+    /// The current user lock code must be provided to authorize the operation.
     set_user_lock_state,
     set_user_lock_state_writer,
     DmsUserLockState,
@@ -844,6 +910,7 @@ setter_with_writer!(
     "set_user_lock_state"
 );
 
+#[cfg(feature = "v1_14")]
 unsafe fn get_supported_messages_extractor(
     output: *mut QmiMessageDmsGetSupportedMessagesOutput,
     error: *mut *mut GError,
@@ -861,7 +928,12 @@ unsafe fn get_supported_messages_extractor(
 }
 
 getter_with_extractor!(
-    // TODO : Documentation
+    /// Retrieves the list of DMS messages supported by the device.
+    ///
+    /// The returned byte vector contains a bitmap indicating which DMS
+    /// message identifiers are supported by the modem.
+    #[cfg(feature = "v1_14")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "v1_14")))]
     get_supported_messages,
     get_supported_messages_extractor,
     Vec<u8>,
@@ -871,7 +943,6 @@ getter_with_extractor!(
     qmi_message_dms_get_supported_messages_output_unref,
     "get_supported_messages"
 );
-
 unsafe fn get_msisdn_extractor(
     output: *mut QmiMessageDmsGetMsisdnOutput,
     error: *mut *mut GError,
@@ -886,7 +957,10 @@ unsafe fn get_msisdn_extractor(
 }
 
 getter_with_extractor!(
-    // TODO : Documentation
+    /// Retrieves the Mobile Station ISDN Number (MSISDN) reported by the device.
+    ///
+    /// The returned string contains the telephone number associated with the
+    /// subscription, when available.
     get_msisdn,
     get_msisdn_extractor,
     String,

@@ -4,78 +4,84 @@ use gobject_sys::GClosure;
 
 /// Signal quality information for a specific radio access technology.
 ///
-/// Each variant contains the metrics reported by the modem for a single
-/// radio technology. Depending on the current network configuration, the
-/// modem may report one or more variants simultaneously (for example LTE
-/// and NR5G when operating in 5G NSA mode).
+/// Each variant contains the signal measurements reported by the modem for a
+/// single radio technology. Depending on the current network configuration,
+/// the modem may report information for multiple radio technologies
+/// simultaneously, for example LTE and NR5G during 5G NSA operation.
 #[derive(Debug, Clone)]
 pub enum SignalInfo {
-    /// GSM signal quality information.
+    /// GSM signal information.
     Gsm {
-        /// Received Signal Strength Indicator, in dBm.
+        /// Received Signal Strength Indicator (RSSI), in dBm.
         rssi: i8,
     },
-    /// CDMA2000 1x signal quality information.
+    /// CDMA2000 1x signal information.
     Cdma {
-        /// Received Signal Strength Indicator, in dBm.
+        /// Received Signal Strength Indicator (RSSI), in dBm.
         rssi: i8,
-        /// Energy per chip over interference, in dB.
+        /// Ec/Io signal quality measurement.
+        ///
+        /// The raw value is reported in units of -0.5 dB.
         ecio: i16,
     },
-    /// HDR (EV-DO) signal quality information.
+    /// HDR (EV-DO) signal information.
     Hdr {
-        /// Received Signal Strength Indicator, in dBm.
+        /// Received Signal Strength Indicator (RSSI), in dBm.
         rssi: i8,
-        /// Energy per chip over interference, in dB.
+        /// Ec/Io signal quality measurement.
+        ///
+        /// The raw value is reported in units of -0.5 dB.
         ecio: i16,
-        /// Signal-to-interference-plus-noise ratio.
+        /// Signal-to-interference-plus-noise ratio level.
         sinr: NasEvdoSinrLevel,
-        /// Total received power, in dBm.
+        /// Total received power (Io), in dBm.
         io: i32,
     },
-    /// UMTS (WCDMA) signal quality information.
+    /// UMTS (WCDMA) signal information.
     Umts {
-        /// Received Signal Strength Indicator, in dBm.
+        /// Received Signal Strength Indicator (RSSI), in dBm.
         rssi: i8,
-        /// Energy per chip over interference, in dB.
+
+        /// Ec/Io signal quality measurement.
+        ///
+        /// The raw value is reported in units of -0.5 dB.
         ecio: i16,
-        #[cfg(feature = "v1_34")]
-        #[cfg_attr(docsrs, doc(cfg(feature = "v1_34")))]
-        /// Received Signal Code Power, in dBm.
+
+        /// Received Signal Code Power (RSCP), in dBm.
         ///
         /// This value is not reported by all modems.
+        #[cfg(feature = "v1_34")]
+        #[cfg_attr(docsrs, doc(cfg(feature = "v1_34")))]
         rscp: Option<i16>,
     },
-    /// TD-SCDMA signal quality information.
+    /// TD-SCDMA signal information.
     TdScdma {
-        /// Received Signal Strength Indicator, in dBm.
+        /// Received Signal Strength Indicator (RSSI), in dBm.
         rssi: i8,
-        // TODO : Not found for the moment.
-        // /// Optional extended TD-SCDMA measurements.
-        // ///
-        // /// Availability depends on modem capabilities.
-        // extended: Option<TdScdmaSignalInfoExtended>,
     },
-    /// LTE signal quality information.
+    /// LTE signal information.
     Lte {
-        /// Received Signal Strength Indicator, in dBm.
+        /// Received Signal Strength Indicator (RSSI), in dBm.
         rssi: i8,
-        /// Reference Signal Received Quality, in dB.
+        /// Reference Signal Received Quality (RSRQ), in dB.
         rsrq: i8,
-        /// Reference Signal Received Power, in dBm.
+        /// Reference Signal Received Power (RSRP), in dBm.
         rsrp: i16,
-        /// Signal-to-noise ratio, in tenths of a dB.
+        /// Signal-to-noise ratio (SNR).
+        ///
+        /// The raw value is reported in tenths of a dB.
         snr: i16,
     },
-    /// 5G NR signal quality information.
+
+    /// 5G NR signal information.
     Nr5g {
-        /// Reference Signal Received Power, in dBm.
+        /// Reference Signal Received Power (RSRP), in dBm.
         rsrp: i16,
-        /// Signal-to-noise ratio, in tenths of a dB.
-        snr: i16,
-        /// Reference Signal Received Quality, in dB.
+        /// Signal-to-noise ratio (SNR).
         ///
-        /// This value is optional and may not be reported by all modems.
+        /// The raw value is reported in tenths of a dB.
+        snr: i16,
+        /// Reference Signal Received Quality (RSRQ), in dB, when available.
         rsrq: Option<i16>,
     },
 }
@@ -143,7 +149,18 @@ struct RadioType {
 }
 
 impl NasClient {
-    // TODO : Documentation
+    /// Configures and enables NAS signal information indications.
+    ///
+    /// The callback is invoked whenever the modem reports updated signal
+    /// information for one or more radio access technologies.
+    ///
+    /// The DMS client is used to determine the radio interfaces supported by the
+    /// device so that signal reporting can be configured accordingly.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the signal information reporting configuration cannot
+    /// be applied to the modem.
     pub async fn set_signal_info(
         &mut self,
         dms_client: &DmsClient,
