@@ -1,7 +1,6 @@
 [![crates.io](https://img.shields.io/crates/v/libqmi-glib-rs.svg)](https://crates.io/crates/libqmi-glib-rs)
 [![Docs.rs](https://docs.rs/libqmi-glib-rs/badge.svg)](https://docs.rs/libqmi-glib-rs)
 [![License](https://img.shields.io/crates/l/libqmi-glib-rs.svg)](https://crates.io/crates/libqmi-glib-rs)
-[![Requires libqmi](https://img.shields.io/badge/libqmi-%E2%89%A51.32-ffc0cb)](https://www.freedesktop.org/software/libqmi/libqmi-glib/latest)
 # libqmi-glib-rs
 
 **libqmi-glib-rs** provides safe, asynchronous Rust bindings for **libqmi-glib**.

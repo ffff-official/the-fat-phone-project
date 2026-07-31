@@ -3,18 +3,24 @@ use super::*;
 use crate::sys::*;
 use futures::channel::oneshot;
 use gio_sys::GAsyncResult;
-use glib_sys::{GError, GFALSE, gboolean, guint32};
+use glib_sys::{GError, GFALSE};
 use gobject_sys::GObject;
 use libqmi_glib_types_rs::glib::translate::FromGlib;
 use libqmi_glib_types_rs::glib::translate::IntoGlib;
-use libqmi_glib_types_rs::{WdsConnectionStatus, WdsIpFamily, WdsPdpType, WdsRequestedSettings};
+use libqmi_glib_types_rs::{WdsConnectionStatus, WdsIpFamily};
 
 use std::cell::RefCell;
 use std::ffi::{CString, c_void};
-use std::fmt;
-use std::net::Ipv4Addr;
 use std::ptr::{NonNull, null_mut};
 use std::rc::Rc;
+
+#[cfg(feature = "v1_32")]
+use {
+    glib_sys::{gboolean, guint32},
+    libqmi_glib_types_rs::{WdsPdpType, WdsRequestedSettings},
+    std::fmt,
+    std::net::Ipv4Addr,
+};
 
 /// A client for interacting with the Wireless Data Service (WDS) of a QMI device.
 ///
@@ -160,6 +166,8 @@ impl WdsClient {
     }
 
     /// Asynchronously sends a Get Current ipv4 Settings request to the device.
+    #[cfg(feature = "v1_32")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "v1_32")))]
     pub async fn get_current_ipv4_settings(&self) -> QmiResult<Ipv4NetworkSettings> {
         let (tx, rx) = oneshot::channel::<QmiResult<Ipv4NetworkSettings>>();
         let input = unsafe { qmi_message_wds_get_current_settings_input_new() };
@@ -282,6 +290,7 @@ unsafe extern "C" fn get_packet_service_status_cb(
     drop(sender.send(output).inspect_err(cannot_send));
 }
 
+#[cfg(feature = "v1_32")]
 unsafe extern "C" fn get_current_settings_cb(
     client: *mut GObject,
     res: *mut GAsyncResult,
@@ -338,6 +347,7 @@ unsafe extern "C" fn get_current_settings_cb(
     );
 }
 
+#[cfg(feature = "v1_32")]
 unsafe fn get_optional_u32<F>(label: &'static str, mut f: F) -> QmiResult<Option<guint32>>
 where
     F: FnMut(*mut guint32, *mut *mut GError) -> gboolean,
@@ -352,6 +362,8 @@ where
 }
 
 /// Current Ipv4 settings.
+#[cfg(feature = "v1_32")]
+#[cfg_attr(docsrs, doc(cfg(feature = "v1_32")))]
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub struct Ipv4NetworkSettings {
     pub ipv4: Option<guint32>,
@@ -361,6 +373,7 @@ pub struct Ipv4NetworkSettings {
     pub pdp: Option<WdsPdpType>,
 }
 
+#[cfg(feature = "v1_32")]
 impl fmt::Display for Ipv4NetworkSettings {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "IPv4 network settings:")?;

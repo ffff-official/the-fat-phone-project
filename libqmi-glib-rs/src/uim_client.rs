@@ -9,9 +9,6 @@ use glib_sys::g_array_new;
 use glib_sys::g_array_unref;
 use glib_sys::guint8;
 use gobject_sys::GObject;
-use libqmi_glib_types_rs::MessageUimGetCardStatusOutputCardStatusCardsElement;
-use libqmi_glib_types_rs::UimPinId;
-use libqmi_glib_types_rs::UimSessionType;
 use libqmi_glib_types_rs::glib::translate::IntoGlib;
 
 use std::cell::RefCell;
@@ -21,7 +18,14 @@ use std::ptr::NonNull;
 use std::ptr::null_mut;
 use std::rc::Rc;
 
+#[cfg(feature = "v1_22")]
+use libqmi_glib_types_rs::{UimPinId, UimSessionType};
+
+#[cfg(feature = "v1_10")]
+use libqmi_glib_types_rs::MessageUimGetCardStatusOutputCardStatusCardsElement;
+#[cfg(feature = "v1_10")]
 type CardStatusOutputElem = MessageUimGetCardStatusOutputCardStatusCardsElement;
+#[cfg(feature = "v1_10")]
 type QmiCardStatusOutputElem = QmiMessageUimGetCardStatusOutputCardStatusCardsElement;
 
 /// A client for interacting with the User Identity Module (UIM) interface of a QMI device.
@@ -91,6 +95,8 @@ impl UimClient {
     ///
     /// Returns a [`QmiError`] if the request fails or if the modem reports an
     /// error while retrieving the card status.
+    #[cfg(feature = "v1_10")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "v1_10")))]
     pub async fn get_card_status(&self) -> QmiResult<Vec<CardStatusOutputElem>> {
         let (tx, rx) = oneshot::channel::<QmiResult<Vec<CardStatusOutputElem>>>();
 
@@ -115,6 +121,8 @@ impl UimClient {
     /// # Errors
     ///
     /// Returns a [`QmiError`] if the PIN is invalid or the request fails.
+    #[cfg(feature = "v1_22")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "v1_22")))]
     pub async fn verify_pin(&self, pin_code: impl AsRef<str>) -> QmiResult<u8> {
         let (tx, rx) = oneshot::channel::<QmiResult<u8>>();
 
@@ -176,6 +184,8 @@ allocate_client_callback!(allocate_client_cb, QmiClientUim, "allocate UIM client
 
 release_client_callback!(release_client_cb, "release UIM client");
 
+#[cfg(feature = "v1_10")]
+#[cfg_attr(docsrs, doc(cfg(feature = "v1_10")))]
 unsafe extern "C" fn get_card_status_cb(
     client: *mut GObject,
     res: *mut GAsyncResult,
@@ -237,6 +247,8 @@ unsafe extern "C" fn get_card_status_cb(
     drop(sender.send(output).inspect_err(cannot_send));
 }
 
+#[cfg(feature = "v1_22")]
+#[cfg_attr(docsrs, doc(cfg(feature = "v1_22")))]
 unsafe extern "C" fn verify_pin_cb(
     client: *mut GObject,
     res: *mut GAsyncResult,

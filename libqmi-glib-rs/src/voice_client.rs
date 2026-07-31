@@ -4,11 +4,16 @@ use crate::sys::*;
 
 use futures::channel::oneshot;
 use gio_sys::GAsyncResult;
-use glib_sys::{GArray, GFALSE};
-use gobject_sys::{GClosure, GObject};
-use libqmi_glib_types_rs::glib::translate::{FromGlib, IntoGlib, from_glib_none};
-use libqmi_glib_types_rs::{
-    IndicationVoiceAllCallStatusOutputCallInformationCall, VoicePresentation,
+use glib_sys::GFALSE;
+use gobject_sys::GObject;
+#[cfg(feature = "v1_26")]
+use {
+    glib_sys::GArray,
+    gobject_sys::GClosure,
+    libqmi_glib_types_rs::{
+        IndicationVoiceAllCallStatusOutputCallInformationCall, VoicePresentation,
+        glib::translate::{FromGlib, IntoGlib, from_glib_none},
+    },
 };
 
 use std::cell::RefCell;
@@ -47,7 +52,9 @@ client_drop_impl!(VoiceClient);
 
 client_clone_impl!(VoiceClient);
 
+#[cfg(feature = "v1_26")]
 type CallInformation = IndicationVoiceAllCallStatusOutputCallInformationCall;
+#[cfg(feature = "v1_26")]
 type CallInfoCallback = Box<dyn FnMut(QmiResult<Vec<VoiceCall>>)>;
 
 /// Describes a voice call reported by the modem.
@@ -55,6 +62,8 @@ type CallInfoCallback = Box<dyn FnMut(QmiResult<Vec<VoiceCall>>)>;
 /// This structure combines the call information reported in the
 /// `all-call-status` indication with the remote party number, providing a
 /// single, convenient view of the call.
+#[cfg(feature = "v1_26")]
+#[cfg_attr(docsrs, doc(cfg(feature = "v1_26")))]
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct VoiceCall {
     /// General information about the call.
@@ -68,6 +77,8 @@ pub struct VoiceCall {
     pub presentation_indicator: VoicePresentation,
 }
 
+#[cfg(feature = "v1_26")]
+#[cfg_attr(docsrs, doc(cfg(feature = "v1_26")))]
 impl std::ops::Deref for VoiceCall {
     type Target = CallInformation;
 
@@ -93,6 +104,8 @@ impl VoiceClient {
     /// Asynchronously sends a Set All Call Status request to the device.
     ///
     /// The sender parameter is the communication channel through which newly received new call states
+    #[cfg(feature = "v1_26")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "v1_26")))]
     pub async fn set_all_call_status(&mut self, cb: CallInfoCallback) -> QmiResult<()> {
         unsafe {
             let cb_ptr = Box::into_raw(Box::new(cb)).cast();
@@ -292,11 +305,13 @@ release_client_callback!(release_client_cb, "release VOICE client");
 
 // IMPORTANT: Quick-and-dirty workaround to suppress duplicate incoming call events.
 //            The modem occasionally reports the same incoming call twice.
+#[cfg(feature = "v1_26")]
 thread_local! {
     static LAST_SNAPSHOTS: RefCell<Vec<VoiceCall>> =
         const { RefCell::new(Vec::new()) };
 }
 
+#[cfg(feature = "v1_26")]
 fn filter_duplicates(mut snapshots: Vec<VoiceCall>) -> Vec<VoiceCall> {
     LAST_SNAPSHOTS.with(|last_snapshots| {
         let mut last_snapshots = last_snapshots.borrow_mut();
@@ -311,6 +326,8 @@ fn filter_duplicates(mut snapshots: Vec<VoiceCall>) -> Vec<VoiceCall> {
     })
 }
 
+#[cfg(feature = "v1_26")]
+#[cfg_attr(docsrs, doc(cfg(feature = "v1_26")))]
 unsafe extern "C" fn all_call_status_cb(
     _client: *mut GObject,
     output: *mut QmiIndicationVoiceAllCallStatusOutput,
@@ -388,6 +405,8 @@ unsafe extern "C" fn all_call_status_cb(
     }
 }
 
+#[cfg(feature = "v1_26")]
+#[cfg_attr(docsrs, doc(cfg(feature = "v1_26")))]
 unsafe extern "C" fn set_all_call_status_cb(
     client: *mut GObject,
     res: *mut GAsyncResult,
@@ -414,6 +433,8 @@ unsafe extern "C" fn set_all_call_status_cb(
     drop(sender.send(output).inspect_err(cannot_send));
 }
 
+#[cfg(feature = "v1_26")]
+#[cfg_attr(docsrs, doc(cfg(feature = "v1_26")))]
 // Lauched when no more instances of GObject references QmiClientVoice exists
 unsafe extern "C" fn destroy_all_call_status_data(data: *mut c_void, _closure: *mut GClosure) {
     tracing::debug!("destroy_all_call_status_data");

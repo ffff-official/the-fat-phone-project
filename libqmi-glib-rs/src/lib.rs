@@ -234,6 +234,8 @@ pub mod nas_client;
 pub mod pds_client;
 pub mod qmi_device;
 pub mod uim_client;
+#[cfg(feature = "v1_14")]
+#[cfg_attr(docsrs, doc(cfg(feature = "v1_14")))]
 pub mod voice_client;
 pub mod wds_client;
 pub mod wms_client;
@@ -257,6 +259,8 @@ pub use pds_client::PdsClient;
 pub use qmi_device::Device;
 #[doc(inline)]
 pub use uim_client::UimClient;
+#[cfg(feature = "v1_14")]
+#[cfg_attr(docsrs, doc(cfg(feature = "v1_14")))]
 #[doc(inline)]
 pub use voice_client::VoiceClient;
 #[doc(inline)]

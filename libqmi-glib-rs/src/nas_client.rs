@@ -10,7 +10,9 @@ pub use signal_info::SignalInfo;
 
 use futures::channel::oneshot::{self, Sender};
 use gio_sys::GAsyncResult;
-use glib_sys::{GArray, GFALSE, GTRUE, g_array_unref, gboolean};
+#[cfg(feature = "v1_22")]
+use glib_sys::{GArray, g_array_unref};
+use glib_sys::{GFALSE, GTRUE, gboolean};
 use gobject_sys::GObject;
 use libqmi_glib_types_rs::DmsRadioInterface;
 use libqmi_glib_types_rs::glib::translate::{IntoGlib, from_glib};
@@ -128,11 +130,10 @@ macro_rules! setter {
         $qmi_function:path,
         $parameter_type:ty,
         $context:literal
-        $(, $extra_parameter:ident : $extra_type:ty)*
     ) => {
         impl NasClient {
             $(#[$meta])*
-            pub async fn $method_name(&mut self, parameter: $parameter_type, $($extra_parameter: $extra_type),*) -> QmiResult<()> {
+            pub async fn $method_name(&mut self, parameter: $parameter_type) -> QmiResult<()> {
                 unsafe extern "C" fn callback(
                     client: *mut GObject,
                     res: *mut GAsyncResult,
@@ -166,7 +167,7 @@ macro_rules! setter {
                 }
 
                 let mut error: *mut GError = null_mut();
-                let ret = unsafe { $qmi_function(input, parameter.into_glib(), $($extra_parameter,)* &mut error) };
+                let ret = unsafe { $qmi_function(input, parameter.into_glib(), &mut error) };
                 if ret == GFALSE {
                     unsafe { qmi_message_nas_set_system_selection_preference_input_unref(input) };
                     Err((error, concat!($context, " assign")))?;
@@ -354,14 +355,37 @@ getter!(
     "get_network_selection_mode"
 );
 
-setter!(
+/// TODO : Documentation
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct NasNetworkSelectionPreferenceWithLocation {
+    /// TODO : Documentation
+    pub preference: NasNetworkSelectionPreference,
+    /// TODO : Documentation
+    pub mmc: u16,
+    /// TODO : Documentation
+    pub mnc: u16,
+}
+
+unsafe fn set_network_selection_mode_writer(
+    input: *mut QmiMessageNasSetSystemSelectionPreferenceInput,
+    error: *mut *mut GError,
+    param: NasNetworkSelectionPreferenceWithLocation,
+) -> gboolean {
+    qmi_message_nas_set_system_selection_preference_input_set_network_selection_preference(
+        input,
+        param.preference.into_glib(),
+        param.mmc,
+        param.mnc,
+        error,
+    )
+}
+
+setter_with_writer!(
     /// TODO : Documentation
     set_network_selection_mode,
-    qmi_message_nas_set_system_selection_preference_input_set_network_selection_preference,
-    NasNetworkSelectionPreference,
-    "set_network_selection_mode",
-    mcc: u16,
-    mnc: u16
+    set_network_selection_mode_writer,
+    NasNetworkSelectionPreferenceWithLocation,
+    "set_network_selection_mode"
 );
 
 getter!(
@@ -462,22 +486,28 @@ setter!(
 
 getter!(
     /// TODO : Documentation
-    set_usage_preference,
-    qmi_message_nas_get_system_selection_preference_output_get_usage_preference,
-    NasUsagePreference,
-    "set_usage_preference"
-);
-
-setter!(
-    /// TODO : Documentation
+    #[cfg(feature = "v1_24")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "v1_24")))]
     get_usage_preference,
-    qmi_message_nas_set_system_selection_preference_input_set_usage_preference,
+    qmi_message_nas_get_system_selection_preference_output_get_usage_preference,
     NasUsagePreference,
     "get_usage_preference"
 );
 
+setter!(
+    /// TODO : Documentation
+    #[cfg(feature = "v1_24")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "v1_24")))]
+    set_usage_preference,
+    qmi_message_nas_set_system_selection_preference_input_set_usage_preference,
+    NasUsagePreference,
+    "set_usage_preference"
+);
+
 getter!(
     /// TODO : Documentation
+    #[cfg(feature = "v1_24")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "v1_24")))]
     get_voice_domain_preference,
     qmi_message_nas_get_system_selection_preference_output_get_voice_domain_preference,
     NasVoiceDomainPreference,
@@ -486,6 +516,8 @@ getter!(
 
 setter!(
     /// TODO : Documentation
+    #[cfg(feature = "v1_24")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "v1_24")))]
     set_voice_domain_preference,
     qmi_message_nas_set_system_selection_preference_input_set_voice_domain_preference,
     NasVoiceDomainPreference,
@@ -494,6 +526,8 @@ setter!(
 
 getter!(
     /// TODO : Documentation
+    #[cfg(feature = "v1_24")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "v1_24")))]
     get_disabled_radio_technologies,
     qmi_message_nas_get_system_selection_preference_output_get_disabled_modes,
     NasRatModePreference,
@@ -501,12 +535,15 @@ getter!(
 );
 
 /// TODO : Documentation
+#[cfg(feature = "v1_32")]
+#[cfg_attr(docsrs, doc(cfg(feature = "v1_32")))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Hash)]
 pub struct Nr5gSaBandPreference {
     /// TODO : Documentation
     pub masks: [u64; 8],
 }
 
+#[cfg(feature = "v1_32")]
 unsafe fn get_nr5g_sa_band_preference_extractor(
     output: *mut QmiMessageNasGetSystemSelectionPreferenceOutput,
     error: *mut *mut GError,
@@ -526,6 +563,7 @@ unsafe fn get_nr5g_sa_band_preference_extractor(
     )
 }
 
+#[cfg(feature = "v1_32")]
 unsafe fn set_nr5g_sa_band_preference_writer(
     input: *mut QmiMessageNasSetSystemSelectionPreferenceInput,
     error: *mut *mut GError,
@@ -547,6 +585,8 @@ unsafe fn set_nr5g_sa_band_preference_writer(
 
 getter_with_custom_extractor!(
     /// TODO : Documentation
+    #[cfg(feature = "v1_32")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "v1_32")))]
     get_nr5g_sa_band_preference,
     get_nr5g_sa_band_preference_extractor,
     Nr5gSaBandPreference,
@@ -555,6 +595,8 @@ getter_with_custom_extractor!(
 
 setter_with_writer!(
     /// TODO : Documentation
+    #[cfg(feature = "v1_32")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "v1_32")))]
     set_nr5g_sa_band_preference,
     set_nr5g_sa_band_preference_writer,
     Nr5gSaBandPreference,
@@ -562,12 +604,15 @@ setter_with_writer!(
 );
 
 /// TODO : Documentation
+#[cfg(feature = "v1_32")]
+#[cfg_attr(docsrs, doc(cfg(feature = "v1_32")))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Hash)]
 pub struct Nr5gNsaBandPreference {
     /// TODO : Documentation
     pub masks: [u64; 8],
 }
 
+#[cfg(feature = "v1_32")]
 unsafe fn get_nr5g_nsa_band_preference_extractor(
     output: *mut QmiMessageNasGetSystemSelectionPreferenceOutput,
     error: *mut *mut GError,
@@ -587,6 +632,7 @@ unsafe fn get_nr5g_nsa_band_preference_extractor(
     )
 }
 
+#[cfg(feature = "v1_32")]
 unsafe fn set_nr5g_nsa_band_preference_writer(
     input: *mut QmiMessageNasSetSystemSelectionPreferenceInput,
     error: *mut *mut GError,
@@ -608,6 +654,8 @@ unsafe fn set_nr5g_nsa_band_preference_writer(
 
 getter_with_custom_extractor!(
     /// TODO : Documentation
+    #[cfg(feature = "v1_32")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "v1_32")))]
     get_nr5g_nsa_band_preference,
     get_nr5g_nsa_band_preference_extractor,
     Nr5gNsaBandPreference,
@@ -616,17 +664,23 @@ getter_with_custom_extractor!(
 
 setter_with_writer!(
     /// TODO : Documentation
+    #[cfg(feature = "v1_32")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "v1_32")))]
     set_nr5g_nsa_band_preference,
     set_nr5g_nsa_band_preference_writer,
     Nr5gNsaBandPreference,
     "set_nr5g_nsa_band_preference"
 );
 
+/// TODO : Documentation
+#[cfg(feature = "v1_20")]
+#[cfg_attr(docsrs, doc(cfg(feature = "v1_20")))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Hash)]
 pub struct ExtendedLteBandPreference {
     pub masks: [u64; 4],
 }
 
+#[cfg(feature = "v1_20")]
 unsafe fn get_extended_lte_band_preference_extractor(
     output: *mut QmiMessageNasGetSystemSelectionPreferenceOutput,
     error: *mut *mut GError,
@@ -642,6 +696,7 @@ unsafe fn get_extended_lte_band_preference_extractor(
     )
 }
 
+#[cfg(feature = "v1_20")]
 unsafe fn set_extended_lte_band_preference_writer(
     input: *mut QmiMessageNasSetSystemSelectionPreferenceInput,
     error: *mut *mut GError,
@@ -659,6 +714,8 @@ unsafe fn set_extended_lte_band_preference_writer(
 
 getter_with_custom_extractor!(
     /// TODO : Documentation
+    #[cfg(feature = "v1_20")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "v1_20")))]
     get_extended_lte_band_preference,
     get_extended_lte_band_preference_extractor,
     ExtendedLteBandPreference,
@@ -667,12 +724,15 @@ getter_with_custom_extractor!(
 
 setter_with_writer!(
     /// TODO : Documentation
+    #[cfg(feature = "v1_20")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "v1_20")))]
     set_extended_lte_band_preference,
     set_extended_lte_band_preference_writer,
     ExtendedLteBandPreference,
     "set_extended_lte_band_preference"
 );
 
+/// TODO : Documentation
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Hash)]
 pub struct ManualNetworkSelection {
     pub mcc: u16,
@@ -705,6 +765,7 @@ getter_with_custom_extractor!(
     "get_manual_network_selection"
 );
 
+#[cfg(feature = "v1_22")]
 unsafe fn get_acquisition_order_preference_extractor(
     output: *mut QmiMessageNasGetSystemSelectionPreferenceOutput,
     error: *mut *mut GError,
@@ -732,6 +793,7 @@ unsafe fn get_acquisition_order_preference_extractor(
     ret
 }
 
+#[cfg(feature = "v1_22")]
 unsafe fn set_acquisition_order_preference_writer(
     input: *mut QmiMessageNasSetSystemSelectionPreferenceInput,
     error: *mut *mut GError,
@@ -748,6 +810,8 @@ unsafe fn set_acquisition_order_preference_writer(
 
 getter_with_custom_extractor!(
     /// TODO : Documentation
+    #[cfg(feature = "v1_22")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "v1_22")))]
     get_acquisition_order_preference,
     get_acquisition_order_preference_extractor,
     Vec<NasRadioInterface>,
@@ -756,6 +820,8 @@ getter_with_custom_extractor!(
 
 setter_with_writer!(
     /// TODO : Documentation
+    #[cfg(feature = "v1_22")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "v1_22")))]
     set_acquisition_order_preference,
     set_acquisition_order_preference_writer,
     &[NasRadioInterface],

@@ -111,7 +111,7 @@ const SETTERS: &[RadioType] = &[
         capability: DmsRadioInterface::Umts,
         functions: &[qmi_message_nas_config_signal_info_v2_input_set_wcdma_rssi_delta,
                      qmi_message_nas_config_signal_info_v2_input_set_wcdma_ecio_delta,
-                     #[cfg(feature = "v1_34")] #[cfg_attr(docsrs, doc(cfg(feature = "v1_34")))] qmi_message_nas_config_signal_info_v2_input_set_wcdma_rscp_delta]
+                     #[cfg(feature = "v1_34")] qmi_message_nas_config_signal_info_v2_input_set_wcdma_rscp_delta]
     },
     RadioType {
         capability: DmsRadioInterface::Lte,
@@ -408,7 +408,6 @@ unsafe extern "C" fn signal_info_cb(
         output, &mut rssi, &mut ecio, &mut error,
     );
     #[cfg(feature = "v1_34")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v1_34")))]
     if ret == GTRUE {
         let mut error: *mut GError = null_mut();
         let mut rscp = 0;
