@@ -349,3 +349,9 @@ fn tracing_debug_hex(source: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
     tracing::debug!("{hex}");
     Ok(())
 }
+
+unsafe fn c_char_to_string(value: *const std::ffi::c_char) -> String {
+    std::ffi::CStr::from_ptr(value)
+        .to_string_lossy()
+        .into_owned()
+}
