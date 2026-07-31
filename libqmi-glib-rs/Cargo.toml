@@ -24,8 +24,10 @@ glib.workspace = true
 
 [features]
 v1_10 = ["libqmi-glib-sys/v1_10", "libqmi-glib-types-rs/v1_10"]
-v1_14 = ["libqmi-glib-sys/v1_14", "libqmi-glib-types-rs/v1_14", "v1_10"]
-v1_20 = ["libqmi-glib-sys/v1_20", "libqmi-glib-types-rs/v1_20", "v1_14"]
+v1_12 = ["libqmi-glib-sys/v1_12", "libqmi-glib-types-rs/v1_12", "v1_10"]
+v1_14 = ["libqmi-glib-sys/v1_14", "libqmi-glib-types-rs/v1_14", "v1_12"]
+v1_18 = ["libqmi-glib-sys/v1_18", "libqmi-glib-types-rs/v1_18", "v1_14"]
+v1_20 = ["libqmi-glib-sys/v1_20", "libqmi-glib-types-rs/v1_20", "v1_18"]
 v1_22 = ["libqmi-glib-sys/v1_22", "libqmi-glib-types-rs/v1_22", "v1_20"]
 v1_24 = ["libqmi-glib-sys/v1_24", "libqmi-glib-types-rs/v1_24", "v1_22"]
 v1_26 = ["libqmi-glib-sys/v1_26", "libqmi-glib-types-rs/v1_26", "v1_24"]
