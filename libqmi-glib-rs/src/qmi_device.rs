@@ -2,6 +2,7 @@ use super::*;
 
 use crate::sys::*;
 use futures::channel::oneshot;
+use gio_sys::g_file_new_for_path;
 use gio_sys::{GAsyncResult, GFile};
 use glib_sys::{GError, GFALSE};
 use gobject_sys::{GObject, g_object_ref, g_object_unref};
@@ -9,6 +10,7 @@ use libqmi_glib_types_rs::glib::translate::FromGlib;
 use libqmi_glib_types_rs::glib::translate::IntoGlib;
 use libqmi_glib_types_rs::{DeviceExpectedDataFormat, DeviceOpenFlags};
 
+use std::ffi::CString;
 use std::ffi::{CStr, c_void};
 use std::ops::Deref;
 use std::ptr::{NonNull, null_mut};
@@ -43,18 +45,51 @@ impl Deref for Device {
 }
 
 impl Device {
-    /// Asynchronously creates a [`Device`] object to manage *file*.
-    pub async fn new(file: *mut GFile) -> QmiResult<Self> {
-        let (tx, rx) = oneshot::channel::<QmiResult<Self>>();
+    /// Asynchronously creates a [`Device`] for the device at the given path.
+    pub async fn new(path: impl AsRef<std::path::Path>) -> QmiResult<Self> {
+        let path = path
+            .as_ref()
+            .to_str()
+            .ok_or_else(|| QmiError::new("Invalid UTF-8 path", "Device::from_path"))?;
+
+        let path = CString::new(path)
+            .map_err(|error| Into::<QmiError>::into((error, "Device::from_path", ())))?;
 
         unsafe {
-            qmi_device_new(
-                file,
-                null_mut(),
-                Some(device_new_cb),
-                Box::into_raw(Box::new(tx)).cast(),
-            )
-        };
+            let file = g_file_new_for_path(path.as_ptr());
+
+            if file.is_null() {
+                return Err(QmiError::new("Could not create GFile", "Device::from_path"));
+            }
+
+            let result = Self::from_gfile(file).await;
+
+            g_object_unref(file.cast());
+
+            result
+        }
+    }
+
+    /// Asynchronously creates a [`Device`] from a raw [`GFile`] pointer.
+    ///
+    /// # Safety
+    ///
+    /// `file` must be a valid, non-null pointer to a live `GFile` for the
+    /// duration of this call.
+    pub async unsafe fn from_gfile(file: *mut GFile) -> QmiResult<Self> {
+        if file.is_null() {
+            return Err(QmiError::new("Null GFile pointer", "Device::from_gfile"));
+        }
+
+        let (tx, rx) = oneshot::channel::<QmiResult<Self>>();
+
+        qmi_device_new(
+            file,
+            null_mut(),
+            Some(device_new_cb),
+            Box::into_raw(Box::new(tx)).cast(),
+        );
+
         rx.await.map_err(|_| QmiError::cb_droped())?
     }
 

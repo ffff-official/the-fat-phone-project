@@ -81,23 +81,16 @@ The library currently provides support for a substantial subset of the QMI servi
 ## Example
 
 ```rust
-use gio_sys::g_file_new_for_path;
 use glib::MainLoop;
-use gobject_sys::g_object_unref;
 use libqmi_glib_rs::*;
-
-use std::ffi::CString;
 
 fn main() {
     let ctx = glib::MainContext::default();
     let main_loop = MainLoop::new(Some(&ctx), false);
     let main_loop_clone = main_loop.clone();
 
-    let path = CString::new("/dev/cdc-wdm1").unwrap();
-    let file = unsafe { g_file_new_for_path(path.as_ptr()) };
-
     ctx.spawn_local(async move {
-        let mut device = Device::new(file).await?;
+        let mut device = Device::new("/dev/cdc-wdm1").await?;
         device.open().await?;
 
         let wds_client = WdsClient::new(&device).await?;
@@ -112,12 +105,7 @@ fn main() {
 
         Ok::<(), Box<dyn std::error::Error>>(())
     });
-
     main_loop.run();
-
-    unsafe {
-        g_object_unref(file as _);
-    }
 }
 ```
 

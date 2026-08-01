@@ -6,14 +6,10 @@ use libqmi_glib_rs::{Device, DmsClient, NasClient, UimClient, VoiceClient, WdsCl
 
 use futures::channel::mpsc;
 use futures::{FutureExt, select};
-use gio_sys::g_file_new_for_path;
 use glib::MainLoop;
 use glib_unix::signal_future;
-use gobject_sys::g_object_unref;
 use nix::libc::{self, SIGINT, SIGTERM};
 
-use std::ffi::CString;
-use std::os::unix::ffi::OsStrExt;
 use std::path::PathBuf;
 use std::sync::atomic::Ordering::Relaxed;
 use std::sync::mpsc::SyncSender;
@@ -23,13 +19,6 @@ pub(crate) fn init_thread(
     status_sender: SyncSender<SmResult<mpsc::UnboundedSender<engine::Request>>>,
     sm_event_sender: mpsc::Sender<Event>,
 ) -> SmResult<()> {
-    let file: *mut gio_sys::GFile = unsafe {
-        g_file_new_for_path(
-            CString::new(qmi_device_path.as_os_str().as_bytes())
-                .expect("The given Pathbuf contains interior NULL byte")
-                .as_ptr(),
-        )
-    };
     let (engine_sender, engine_receiver) = mpsc::unbounded::<engine::Request>();
 
     let ctx = glib::MainContext::default(); // Glib runtime
@@ -42,7 +31,7 @@ pub(crate) fn init_thread(
             let tokio_runtime = tokio::runtime::Runtime::new().map_err(Error::TokioRuntimeError)?; // Tokio runtime
             let tokio_handle = tokio_runtime.handle().clone();
 
-            let mut device = Device::new(file).await?;
+            let mut device = Device::new(qmi_device_path).await?;
             device.open().await?;
             let mut wms_client = WmsClient::new(&device).await?;
             let wds_client = WdsClient::new(&device).await?;
@@ -203,6 +192,5 @@ pub(crate) fn init_thread(
         main_loop_clone.quit();
     });
     main_loop.run();
-    unsafe { g_object_unref(file as _) };
     Ok(())
 }
