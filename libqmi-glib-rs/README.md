@@ -1,22 +1,90 @@
 [![crates.io](https://img.shields.io/crates/v/libqmi-glib-rs.svg)](https://crates.io/crates/libqmi-glib-rs)
 [![Docs.rs](https://docs.rs/libqmi-glib-rs/badge.svg)](https://docs.rs/libqmi-glib-rs)
 [![License](https://img.shields.io/crates/l/libqmi-glib-rs.svg)](https://crates.io/crates/libqmi-glib-rs)
+[![Requires libqmi](https://img.shields.io/badge/libqmi-required-ffc0cb)](https://www.freedesktop.org/software/libqmi/libqmi-glib/latest)
 # libqmi-glib-rs
 
 **libqmi-glib-rs** provides safe, asynchronous Rust bindings for **libqmi-glib**.
 
-It allows applications to communicate with QMI-based cellular modems using idiomatic `async`/`await` while leveraging GLib's asynchronous APIs under the hood.
+It allows Rust applications to communicate with QMI-compatible cellular modems using idiomatic `async`/`await` while relying on GLib's asynchronous infrastructure under the hood.
 
-The library currently implements a subset of the QMI protocol, including device management, client creation, and common network service operations.
+The library aims to provide a safe and ergonomic API while remaining close to the underlying QMI protocol.
+
+## Features
+
+The library currently provides support for a substantial subset of the QMI services exposed by **libqmi-glib**:
+
+* **Device management**
+
+  * Device creation and opening.
+  * QMI client creation.
+  * Resource management.
+
+* **WDS (Wireless Data Service)**
+
+  * Packet data connection management.
+  * IPv4 network session management.
+  * Current network settings.
+  * Packet service status.
+
+* **WMS (Wireless Messaging Service)**
+
+  * Send SMS messages.
+  * Receive incoming SMS indications.
+  * Configure SMS routing.
+  * Query and modify message routes.
+
+* **NAS (Network Access Service)**
+
+  * Signal quality.
+  * Serving system information.
+  * System selection preferences.
+  * Band preferences.
+  * Radio technology preferences.
+  * Network registration information.
+  * Various network configuration APIs.
+
+* **DMS (Device Management Service)**
+
+  * Device capabilities.
+  * Device information.
+  * Firmware and hardware information.
+  * SIM and operating mode related operations.
+
+* **VOICE**
+
+  * Dial outgoing calls.
+  * Answer incoming calls.
+  * Hang up calls.
+  * Burst DTMF.
+  * Call status indications.
+
+* **UIM (User Identity Module)**
+
+  * Selected SIM management operations.
+  * PIN management.
+  * Slot management.
+
+* **PDS (Position Determination Service)**
+
+  * GPS service configuration.
+  * Default tracking session management.
+
+## Design goals
+
+* Safe Rust wrappers around the libqmi-glib API.
+* Idiomatic asynchronous API based on `async`/`await`.
+* Automatic resource management.
+* Consistent API across QMI services.
+* Close mapping with the original libqmi-glib API.
 
 ## Example
 
 ```rust
-use libqmi_glib_rs::*;
-
 use gio_sys::g_file_new_for_path;
 use glib::MainLoop;
 use gobject_sys::g_object_unref;
+use libqmi_glib_rs::*;
 
 use std::ffi::CString;
 
@@ -35,7 +103,7 @@ fn main() {
         let wds_client = WdsClient::new(&device).await?;
         let status = wds_client.get_packet_service_status().await?;
 
-        println!("Packet service status: {:?}", status);
+        println!("Packet service status: {status:?}");
 
         wds_client.close().await?;
         device.close().await?;
@@ -55,11 +123,16 @@ fn main() {
 
 ## Requirements
 
-- Linux
-- GLib
-- libqmi-glib
-- A QMI-compatible modem
+* Linux
+* GLib
+* libqmi-glib
+* A QMI-compatible cellular modem
 
-## Status
+## License
 
-This project is under active development and currently supports only a subset of the QMI protocol.
+Licensed under either of
+
+* Apache License, Version 2.0
+* MIT License
+
+at your option.

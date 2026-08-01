@@ -1,5 +1,7 @@
 mod event_report;
 pub use event_report::*;
+pub type Route = MessageWmsGetRoutesOutputRouteListElement;
+
 use glib_sys::GTRUE;
 use glib_sys::gboolean;
 
@@ -22,8 +24,6 @@ use std::cell::RefCell;
 use std::ffi::c_void;
 use std::ptr::{NonNull, null_mut};
 use std::rc::Rc;
-
-type Route = MessageWmsGetRoutesOutputRouteListElement;
 
 /// A client for interacting with the Wireless Messaging Service (WMS) of a QMI device.
 ///

@@ -1,7 +1,32 @@
 //! **libqmi-glib-rs provides safe, asynchronous Rust bindings for libqmi-glib.**
 //!
-//! It allows applications to communicate with QMI-based cellular modems using idiomatic async/await while leveraging GLib's asynchronous APIs under the hood.
-//! The library wraps a little part of QMI operations such as device management, client creation, and network services in a Rust-friendly API.  
+//! It allows applications to communicate with QMI-based cellular modems using
+//! idiomatic async/await while leveraging GLib's asynchronous APIs under the
+//! hood.
+//!
+//! The library exposes a safe, high-level API covering a substantial subset of
+//! libqmi-glib services, including:
+//!
+//! - **Device management**, including device creation and lifecycle handling.
+//! - **WDS (Wireless Data Service)** for packet data connections and network
+//!   configuration.
+//! - **WMS (Wireless Messaging Service)** for sending SMS messages, receiving
+//!   SMS indications, and managing message routes.
+//! - **NAS (Network Access Service)** for network registration, signal quality,
+//!   system selection preferences, and radio information.
+//! - **DMS (Device Management Service)** for querying modem capabilities and
+//!   device information.
+//! - **VOICE** for placing, answering, terminating, and monitoring voice calls
+//!   through asynchronous call status indications.
+//! - **UIM (User Identity Module)** for selected SIM card management
+//!   operations.
+//! - **PDS (Position Determination Service)** for selected GNSS/GPS
+//!   configuration features.
+//!
+//! The API follows Rust idioms while remaining close to the underlying QMI
+//! protocol. Most QMI requests are exposed as asynchronous methods, and common
+//! request patterns are implemented through reusable abstractions, providing a
+//! consistent interface across services.
 //! ```no_run
 //! use libqmi_glib_rs::*;
 //!
