@@ -142,7 +142,7 @@ unsafe extern "C" fn send_sms_cb(
 
     let raw = qmi_client_wms_raw_send_finish(client.cast(), res, &mut error);
     let output = if raw.is_null() {
-        Err((error, "send_sms_cb 1").into())
+        Err((error, "send_sms_cb finish").into())
     } else {
         let ret = qmi_message_wms_raw_send_output_get_result(raw, &mut error);
         let ret = match ret {
@@ -161,7 +161,7 @@ unsafe extern "C" fn send_sms_cb(
                     tracing::debug!("{:?}", WmsGsmUmtsTpCause::from_glib(tp_cause));
                     tracing::debug!("SMS sending failed with GSM/UMTS cause");
                 }
-                Err((error, "send_sms_cb 2").into())
+                Err((error, "send_sms_cb get result").into())
             }
             _ => {
                 let mut message_id: guint16 = 0;
@@ -171,7 +171,7 @@ unsafe extern "C" fn send_sms_cb(
                     &mut error,
                 );
                 match ret {
-                    GFALSE => Err((error, "send_sms_cb 3").into()),
+                    GFALSE => Err((error, "send_sms_cb get message id").into()),
                     _ => Ok(message_id as u64),
                 }
             }

@@ -61,7 +61,7 @@
 
 #[doc(hidden)]
 pub(crate) mod __macro_support {
-    pub use crate::sys::*;
+    pub(crate) use crate::sys::*;
     pub use futures::channel::oneshot;
     pub use gio_sys::GAsyncResult;
     pub use glib_sys::GFALSE;
@@ -127,9 +127,7 @@ macro_rules! new_client_impl {
         /// Asynchronously allocates a new [`Self`].
         pub async fn new(device: &Device) -> QmiResult<$client_type> {
             use $crate::__macro_support::*;
-            let (tx, rx) = oneshot::channel::<
-                QmiResult<NonNull<$ffi_client_type>>,
-            >();
+            let (tx, rx) = oneshot::channel::<QmiResult<NonNull<$ffi_client_type>>>();
 
             unsafe {
                 qmi_device_allocate_client(
@@ -159,13 +157,7 @@ macro_rules! close_client_impl {
         /// Asynchronously releases the client from the [`Device`].
         pub async fn close(self) -> QmiResult<()> {
             use $crate::__macro_support::*;
-            let ref_count = unsafe {
-                *(self
-                    .client
-                    .as_ptr()
-                    .cast::<GObject>())
-            }
-            .ref_count;
+            let ref_count = unsafe { *(self.client.as_ptr().cast::<GObject>()) }.ref_count;
             if ref_count != 2 {
                 Err(QmiError::new(
                     format!("can't close ref count = {}", ref_count),
@@ -202,20 +194,16 @@ macro_rules! allocate_client_callback {
             user_data: *mut $crate::__macro_support::c_void,
         ) {
             use $crate::__macro_support::*;
-            let sender = Box::from_raw(user_data.cast::<oneshot::Sender<
-                QmiResult<NonNull<$client_type>>,
-            >>());
+            let sender = Box::from_raw(
+                user_data.cast::<oneshot::Sender<QmiResult<NonNull<$client_type>>>>(),
+            );
 
             let mut error: *mut GError = null_mut();
 
-            let client = qmi_device_allocate_client_finish(
-                device.cast(),
-                res,
-                &mut error,
-            );
+            let client = qmi_device_allocate_client_finish(device.cast(), res, &mut error);
 
-            let output = NonNull::new(client.cast::<$client_type>())
-                .ok_or_else(|| (error, $context).into());
+            let output =
+                NonNull::new(client.cast::<$client_type>()).ok_or_else(|| (error, $context).into());
 
             drop(sender.send(output).inspect_err(cannot_send));
         }
@@ -233,16 +221,10 @@ macro_rules! release_client_callback {
             user_data: *mut $crate::__macro_support::c_void,
         ) {
             use $crate::__macro_support::*;
-            let sender = Box::from_raw(
-                user_data.cast::<oneshot::Sender<QmiResult<()>>>(),
-            );
+            let sender = Box::from_raw(user_data.cast::<oneshot::Sender<QmiResult<()>>>());
             let mut error: *mut GError = null_mut();
 
-            let res = qmi_device_release_client_finish(
-                device.cast(),
-                res,
-                &mut error,
-            );
+            let res = qmi_device_release_client_finish(device.cast(), res, &mut error);
 
             let output = match res {
                 GFALSE => Err((error, $context).into()),
@@ -813,13 +795,15 @@ pub mod wds;
 pub mod wms;
 
 /// Re-exports all definitions from libqmi-glib-sys.
-pub mod sys {
-    pub use libqmi_glib_sys::*;
+pub(crate) mod sys {
+    pub(crate) use libqmi_glib_sys::*;
 }
 /// Re-exports all definitions from libqmi-glib-types-rs.
 pub mod types {
     pub use libqmi_glib_types_rs::*;
 }
+
+use std::fmt::Debug;
 
 #[doc(inline)]
 pub use device::Device;
@@ -850,15 +834,98 @@ fn cannot_send<T: std::fmt::Debug>(result: &QmiResult<T>) {
 
 pub type QmiResult<T> = Result<T, QmiError>;
 
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+/// Error type returned by the library.
+///
+/// `QmiError` combines the human-readable error message reported by GLib with
+/// additional information identifying the origin of the failure.
+///
+/// When available, the original GLib error domain and error code are preserved.
+/// For QMI-specific errors, these values are used by the `Debug` implementation
+/// to display the corresponding `ProtocolError` or `CoreError` variant.
+///
+/// The `context` field identifies the operation that produced the error,
+/// making it easier to locate failures when debugging.
+#[derive(Clone, Eq, PartialEq, Hash)]
 pub struct QmiError {
+    /// Human-readable error message.
     pub message: String,
+    /// Name of the operation that produced the error.
     pub context: &'static str,
+    /// Numeric error code reported by GLib, if available.
+    pub code: Option<i32>,
+    /// GLib error domain (`GQuark`), if available.
+    pub domain: Option<u32>,
+}
+
+impl Debug for QmiError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use libqmi_glib_sys::{qmi_core_error_quark, qmi_protocol_error_quark};
+        use libqmi_glib_types_rs::glib::translate::FromGlib;
+        use libqmi_glib_types_rs::{CoreError, ProtocolError};
+
+        if let (Some(domain), Some(code)) = (self.domain, self.code) {
+            unsafe {
+                let domain_name =
+                    std::ffi::CStr::from_ptr(glib_sys::g_quark_to_string(domain)).to_string_lossy();
+                if domain == qmi_protocol_error_quark() {
+                    let protocol_error = ProtocolError::from_glib(code);
+                    write!(
+                        f,
+                        "{}: [QMI_PROTOCOL_ERROR: {:?} ({})]",
+                        self.context, protocol_error, code
+                    )
+                } else if domain == qmi_core_error_quark() {
+                    let core_error = CoreError::from_glib(code);
+                    write!(
+                        f,
+                        "{}: [QMI_CORE_ERROR: {:?} ({})]",
+                        self.context, core_error, code
+                    )
+                } else {
+                    write!(
+                        f,
+                        "{}: {} [{} ({})]",
+                        self.context, self.message, domain_name, code
+                    )
+                }
+            }
+        } else {
+            write!(f, "{}: {}", self.context, self.message)
+        }
+    }
+}
+
+#[doc(hidden)]
+impl From<(*mut GError, &'static str)> for QmiError {
+    fn from((mut error, context): (*mut GError, &'static str)) -> Self {
+        if error.is_null() {
+            return Self {
+                message: "Unknown GLib error".into(),
+                context,
+                code: None,
+                domain: None,
+            };
+        }
+
+        unsafe {
+            let ret = Self {
+                message: std::ffi::CStr::from_ptr((*error).message)
+                    .to_string_lossy()
+                    .into_owned(),
+                context,
+                code: Some((*error).code),
+                domain: Some((*error).domain),
+            };
+
+            g_clear_error(&mut error);
+            ret
+        }
+    }
 }
 
 impl std::fmt::Display for QmiError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}: {}", self.context, self.message)
+        Debug::fmt(&self, f)
     }
 }
 
@@ -867,6 +934,8 @@ impl QmiError {
         Self {
             message: message.as_ref().to_string(),
             context,
+            code: None,
+            domain: None,
         }
     }
 }
@@ -874,27 +943,13 @@ impl QmiError {
 impl std::error::Error for QmiError {}
 
 #[doc(hidden)]
-impl From<(*mut GError, &'static str)> for QmiError {
-    fn from((mut error, context): (*mut GError, &'static str)) -> Self {
-        unsafe {
-            let ret = Self {
-                message: std::ffi::CStr::from_ptr((*error).message)
-                    .to_string_lossy()
-                    .to_string(),
-                context,
-            };
-            g_clear_error(&mut error);
-            ret
-        }
-    }
-}
-
-#[doc(hidden)]
 impl<T: std::error::Error> From<(T, &'static str, ())> for QmiError {
     fn from((error, context, _): (T, &'static str, ())) -> Self {
         Self {
             message: error.to_string(),
             context,
+            code: None,
+            domain: None,
         }
     }
 }
@@ -904,6 +959,8 @@ impl QmiError {
         Self {
             message: "cb droped".to_string(),
             context: "Unknown",
+            code: None,
+            domain: None,
         }
     }
 }

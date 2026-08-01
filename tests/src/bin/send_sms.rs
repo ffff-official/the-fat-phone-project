@@ -12,7 +12,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let client = client_handle.client();
 
-    client.send_sms(&dest, "This is bullshit !", true).await?;
+    let output = client.send_sms(&dest, "This is bullshit !", true).await?;
+    dbg!(output);
 
     client_handle.shutdown().await?;
     Ok(())
