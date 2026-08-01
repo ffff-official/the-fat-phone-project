@@ -1,25 +1,20 @@
+pub use libqmi_glib_types_rs::{WdsConnectionStatus, WdsIpFamily};
+
 use super::*;
 
 use crate::sys::*;
-use futures::channel::oneshot;
-use gio_sys::GAsyncResult;
-use glib_sys::{GError, GFALSE};
-use gobject_sys::GObject;
-use libqmi_glib_types_rs::glib::translate::FromGlib;
-use libqmi_glib_types_rs::glib::translate::IntoGlib;
-use libqmi_glib_types_rs::{WdsConnectionStatus, WdsIpFamily};
+use glib_sys::{GArray, GError, GFALSE, gboolean};
+use libqmi_glib_types_rs::glib::translate::{IntoGlib, from_glib};
 
 use std::cell::RefCell;
-use std::ffi::{CString, c_void};
+use std::ffi::CString;
 use std::ptr::{NonNull, null_mut};
 use std::rc::Rc;
 
 #[cfg(feature = "v1_32")]
 use {
-    glib_sys::{gboolean, guint32},
     libqmi_glib_types_rs::{WdsPdpType, WdsRequestedSettings},
-    std::fmt,
-    std::net::Ipv4Addr,
+    std::net::{Ipv4Addr, Ipv6Addr},
 };
 
 /// A client for interacting with the Wireless Data Service (WDS) of a QMI device.
@@ -39,11 +34,7 @@ use {
 pub struct WdsClient {
     client: NonNull<QmiClientWds>,
     device: Device,
-    data: Rc<RefCell<Option<Data>>>,
-}
-#[derive(Debug, Clone, Copy)]
-pub struct Data {
-    pdh: u32, // session identifier
+    data: Rc<RefCell<Option<()>>>,
 }
 
 client_drop_impl!(WdsClient);
@@ -59,335 +50,296 @@ impl WdsClient {
     new_client_impl!(WdsClient, QmiClientWds, libqmi_glib_types_rs::Service::Wds);
 
     close_client_impl!("wds");
-
-    /// Asynchronously sends a Start Network request to the device.
-    pub async fn start_network(&mut self, apn: &str) -> QmiResult<()> {
-        let (tx, rx) = oneshot::channel::<QmiResult<u32>>();
-        let c_string =
-            CString::new(apn).map_err(|e| Into::<QmiError>::into((e, "start network new", ())))?;
-        let input = unsafe { qmi_message_wds_start_network_input_new() };
-        if input.is_null() {
-            Err(QmiError::new("nullptr input", "start_network"))?;
-        }
-        let mut error: *mut GError = null_mut();
-
-        let ret = unsafe {
-            qmi_message_wds_start_network_input_set_apn(input, c_string.as_ptr(), &mut error)
-        };
-        if ret == GFALSE {
-            Err((error, "start network set apn"))?
-        } else {
-            let ret = unsafe {
-                qmi_message_wds_start_network_input_set_ip_family_preference(
-                    input,
-                    WdsIpFamily::Ipv4.into_glib(),
-                    &mut error,
-                )
-            };
-            if ret == GFALSE {
-                Err((error, "start network set ip family"))?
-            } else {
-                unsafe {
-                    qmi_client_wds_start_network(
-                        self.client.as_ptr(),
-                        input,
-                        OPERATION_TIMEOUT,
-                        null_mut(),
-                        Some(start_network_cb),
-                        Box::into_raw(Box::new(tx)).cast(),
-                    );
-                    qmi_message_wds_start_network_input_unref(input);
-                }
-                match rx.await {
-                    Ok(pdh) => {
-                        *self.data.borrow_mut() = Some(Data { pdh: pdh? });
-                        Ok(())
-                    }
-                    Err(_e) => Err(QmiError::cb_droped()),
-                }
-            }
-        }
-    }
-
-    /// Asynchronously sends a Stop Network request to the device.
-    pub async fn stop_network(&mut self) -> QmiResult<()> {
-        let data = self.data.borrow().ok_or_else(|| QmiError {
-            message: "Got not PDH : Network seems to be already stoped !".into(),
-            context: "stop network",
-        })?;
-        let (tx, rx) = oneshot::channel::<QmiResult<()>>();
-        let input = unsafe { qmi_message_wds_stop_network_input_new() };
-        let mut error: *mut GError = null_mut();
-
-        let ret = unsafe {
-            qmi_message_wds_stop_network_input_set_packet_data_handle(input, data.pdh, &mut error)
-        };
-        if ret == GFALSE {
-            unsafe {
-                qmi_message_wds_stop_network_input_unref(input);
-            }
-            Err((error, "stop network set pdh"))?
-        } else {
-            unsafe {
-                qmi_client_wds_stop_network(
-                    self.client.as_ptr(),
-                    input,
-                    OPERATION_TIMEOUT,
-                    null_mut(),
-                    Some(stop_network_cb),
-                    Box::into_raw(Box::new(tx)).cast(),
-                );
-            }
-            let ret = rx.await;
-            unsafe {
-                qmi_message_wds_stop_network_input_unref(input);
-            }
-            ret.map_err(|_| QmiError::cb_droped())?.map(|_| {
-                *self.data.borrow_mut() = None;
-            })
-        }
-    }
-
-    /// Asynchronously sends a Get Packet Service Status request to the device.
-    pub async fn get_packet_service_status(&self) -> QmiResult<WdsConnectionStatus> {
-        let (tx, rx) = oneshot::channel::<QmiResult<WdsConnectionStatus>>();
-
-        unsafe {
-            qmi_client_wds_get_packet_service_status(
-                self.client.as_ptr(),
-                null_mut(),
-                OPERATION_TIMEOUT,
-                null_mut(),
-                Some(get_packet_service_status_cb),
-                Box::into_raw(Box::new(tx)).cast(),
-            )
-        }
-        rx.await.map_err(|_| QmiError::cb_droped())?
-    }
-
-    /// Asynchronously sends a Get Current ipv4 Settings request to the device.
-    #[cfg(feature = "v1_32")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "v1_32")))]
-    pub async fn get_current_ipv4_settings(&self) -> QmiResult<Ipv4NetworkSettings> {
-        let (tx, rx) = oneshot::channel::<QmiResult<Ipv4NetworkSettings>>();
-        let input = unsafe { qmi_message_wds_get_current_settings_input_new() };
-        if input.is_null() {
-            Err(QmiError::new("nullptr input", "get_current_settings"))?;
-        }
-        let mut error: *mut GError = null_mut();
-        use WdsRequestedSettings as Q;
-        let settings = Q::IP_ADDRESS | Q::GATEWAY_INFO | Q::PDP_TYPE | Q::MTU;
-
-        let ret = unsafe {
-            qmi_message_wds_get_current_settings_input_set_requested_settings(
-                input,
-                settings.into_glib(),
-                &mut error,
-            )
-        };
-        if ret == GFALSE {
-            unsafe { qmi_message_wds_get_current_settings_input_unref(input) }
-            Err((error, "get_current_settings"))?
-        }
-
-        unsafe {
-            qmi_client_wds_get_current_settings(
-                self.client.as_ptr(),
-                input,
-                OPERATION_TIMEOUT,
-                null_mut(),
-                Some(get_current_settings_cb),
-                Box::into_raw(Box::new(tx)).cast(),
-            );
-        }
-        let ret = rx.await;
-        unsafe {
-            qmi_message_wds_get_current_settings_input_unref(input);
-        }
-        ret.map_err(|_| QmiError::cb_droped())?
-    }
 }
 
 allocate_client_callback!(allocate_client_cb, QmiClientWds, "allocate WDS client");
 
 release_client_callback!(release_client_cb, "release WDS client");
 
-unsafe extern "C" fn start_network_cb(
-    client: *mut GObject,
-    res: *mut GAsyncResult,
-    user_data: *mut c_void,
-) {
-    let sender = Box::from_raw(user_data.cast::<oneshot::Sender<QmiResult<u32>>>());
-    let mut error: *mut GError = null_mut();
+type Context = WdsClient;
 
-    let output = qmi_client_wds_start_network_finish(client.cast(), res, &mut error);
-    let output = match output.is_null() {
-        true => Err((error, "start network cb finish").into()),
-        false => {
-            let mut pdh: u32 = 0;
-            let ret = qmi_message_wds_start_network_output_get_packet_data_handle(
-                output, &mut pdh, &mut error,
-            );
-            qmi_message_wds_start_network_output_unref(output);
-            match ret {
-                GFALSE => Err((error, "start network cb pdh").into()),
-                _ => Ok(pdh),
-            }
-        }
-    };
-    drop(sender.send(output).inspect_err(cannot_send));
-}
-
-unsafe extern "C" fn stop_network_cb(
-    client: *mut GObject,
-    res: *mut GAsyncResult,
-    user_data: *mut c_void,
-) {
-    let sender = Box::from_raw(user_data.cast::<oneshot::Sender<QmiResult<()>>>());
-    let mut error: *mut GError = null_mut();
-
-    let output = qmi_client_wds_stop_network_finish(client.cast(), res, &mut error);
-    let output = match output.is_null() {
-        true => Err((error, "stop network cb finish").into()),
-        false => {
-            let ret = qmi_message_wds_stop_network_output_get_result(output, &mut error);
-            qmi_message_wds_stop_network_output_unref(output);
-            match ret {
-                GFALSE => Err((error, "stop network get result").into()),
-                _ => Ok(()),
-            }
-        }
-    };
-    drop(sender.send(output).inspect_err(cannot_send));
-}
-
-unsafe extern "C" fn get_packet_service_status_cb(
-    client: *mut GObject,
-    res: *mut GAsyncResult,
-    user_data: *mut c_void,
-) {
-    let sender = Box::from_raw(user_data.cast::<oneshot::Sender<QmiResult<WdsConnectionStatus>>>());
-    let mut error: *mut GError = null_mut();
-
-    let status_output =
-        qmi_client_wds_get_packet_service_status_finish(client.cast(), res, &mut error);
-    let output = match status_output.is_null() {
-        true => Err((error, "packet service status cb get").into()),
-        false => {
-            let mut value_connection_status = 0;
-            let status = qmi_message_wds_get_packet_service_status_output_get_connection_status(
-                status_output,
-                &mut value_connection_status,
-                &mut error,
-            );
-            qmi_message_wds_get_packet_service_status_output_unref(status_output);
-            match status {
-                GFALSE => Err((error, "packet service status cb").into()),
-                _ => Ok(WdsConnectionStatus::from_glib(value_connection_status)),
-            }
-        }
-    };
-    drop(sender.send(output).inspect_err(cannot_send));
-}
-
-#[cfg(feature = "v1_32")]
-unsafe extern "C" fn get_current_settings_cb(
-    client: *mut GObject,
-    res: *mut GAsyncResult,
-    user_data: *mut c_void,
-) {
-    let sender = Box::from_raw(user_data.cast::<oneshot::Sender<QmiResult<Ipv4NetworkSettings>>>());
-    let mut error: *mut GError = null_mut();
-    let status_output = qmi_client_wds_get_current_settings_finish(client.cast(), res, &mut error);
-    let ipv4_network_settings = || match status_output.is_null() {
-        true => Err((error, "get_current_settings_cb").into()),
-        false => {
-            let ipv4_network_settings = Ipv4NetworkSettings {
-                ipv4: get_optional_u32("Cant get ipv4", |value, error| {
-                    qmi_message_wds_get_current_settings_output_get_ipv4_address(
-                        status_output,
-                        value,
-                        error,
-                    )
-                })?,
-                gw: get_optional_u32("Cant get gw", |value, error| {
-                    qmi_message_wds_get_current_settings_output_get_ipv4_gateway_address(
-                        status_output,
-                        value,
-                        error,
-                    )
-                })?,
-                mask: get_optional_u32("Cant get mask", |value, error| {
-                    qmi_message_wds_get_current_settings_output_get_ipv4_gateway_subnet_mask(
-                        status_output,
-                        value,
-                        error,
-                    )
-                })?,
-                pdp: get_optional_u32("Cant get pdp", |value, error| {
-                    qmi_message_wds_get_current_settings_output_get_pdp_type(
-                        status_output,
-                        value as _,
-                        error,
-                    )
-                })?
-                .map(|m| WdsPdpType::from_glib(m as i32)),
-                mtu: get_optional_u32("Cant get mtu", |value, error| {
-                    qmi_message_wds_get_current_settings_output_get_mtu(status_output, value, error)
-                })?,
-            };
-            qmi_message_wds_get_current_settings_output_unref(status_output);
-            Ok(ipv4_network_settings)
-        }
-    };
-    drop(
-        sender
-            .send(ipv4_network_settings())
-            .inspect_err(cannot_send),
-    );
-}
-
-#[cfg(feature = "v1_32")]
-unsafe fn get_optional_u32<F>(label: &'static str, mut f: F) -> QmiResult<Option<guint32>>
-where
-    F: FnMut(*mut guint32, *mut *mut GError) -> gboolean,
-{
-    let mut value: guint32 = 0;
-    let mut error: *mut GError = std::ptr::null_mut();
-
-    match f(&mut value, &mut error) {
-        GFALSE => Err(Into::<QmiError>::into((error, label))),
-        _ => Ok(Some(value)),
-    }
-}
+getter!(
+    /// Asynchronously sends a Get Packet Service Status request to the device.
+    get_packet_service_status,
+    qmi_message_wds_get_packet_service_status_output_get_connection_status,
+    WdsConnectionStatus,
+    qmi_client_wds_get_packet_service_status,
+    qmi_client_wds_get_packet_service_status_finish,
+    qmi_message_wds_get_packet_service_status_output_get_result,
+    qmi_message_wds_get_packet_service_status_output_unref,
+    "get_packet_service_status"
+);
 
 /// Current Ipv4 settings.
 #[cfg(feature = "v1_32")]
 #[cfg_attr(docsrs, doc(cfg(feature = "v1_32")))]
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub struct Ipv4NetworkSettings {
-    pub ipv4: Option<guint32>,
-    pub gw: Option<guint32>,
-    pub mask: Option<guint32>,
-    pub mtu: Option<guint32>,
-    pub pdp: Option<WdsPdpType>,
+    pub address: Option<Ipv4Addr>,
+    pub gateway: Option<Ipv4Addr>,
+    pub netmask: Option<Ipv4Addr>,
+    pub primary_dns: Option<Ipv4Addr>,
+    pub secondary_dns: Option<Ipv4Addr>,
+}
+
+/// Current Ipv6 settings.
+#[cfg(feature = "v1_32")]
+#[cfg_attr(docsrs, doc(cfg(feature = "v1_32")))]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
+pub struct Ipv6NetworkSettings {
+    pub address: Option<Ipv6Addr>,
+    pub prefix_length: Option<u8>,
+    pub gateway: Option<Ipv6Addr>,
+    pub gateway_prefix_length: Option<u8>,
+    pub primary_dns: Option<Ipv6Addr>,
+    pub secondary_dns: Option<Ipv6Addr>,
+}
+
+/// Current IP settings.
+#[cfg(feature = "v1_32")]
+#[cfg_attr(docsrs, doc(cfg(feature = "v1_32")))]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
+pub struct NetworkSettings {
+    pub apn: Option<String>,
+    pub mtu: Option<u32>,
+    pub pdp_type: Option<WdsPdpType>,
+
+    pub ipv4: Ipv4NetworkSettings,
+    pub ipv6: Ipv6NetworkSettings,
 }
 
 #[cfg(feature = "v1_32")]
-impl fmt::Display for Ipv4NetworkSettings {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "IPv4 network settings:")?;
-        let ipv4 = self.ipv4.map(|x| x.to_be_bytes()).unwrap_or([0, 0, 0, 0]);
-        let mask = self.mask.map(|x| x.to_be_bytes()).unwrap_or([0, 0, 0, 0]);
-        let gw = self.gw.map(|x| x.to_be_bytes()).unwrap_or([0, 0, 0, 0]);
-        let mtu = self.mtu.map(|x| format!("{x}")).unwrap_or("NIA".into());
-        let pdp = self.pdp.map(|x| format!("{x:?}")).unwrap_or("NIA".into());
+unsafe fn get_current_ip_settings_writer(
+    input: *mut QmiMessageWdsGetCurrentSettingsInput,
+    error: *mut *mut GError,
+    settings: WdsRequestedSettings,
+) -> gboolean {
+    qmi_message_wds_get_current_settings_input_set_requested_settings(
+        input,
+        settings.into_glib(),
+        error,
+    )
+}
 
-        writeln!(f, "  Address : {}", Ipv4Addr::from(ipv4))?;
-        writeln!(f, "  Netmask : {}", Ipv4Addr::from(mask))?;
-        writeln!(f, "  Gateway : {}", Ipv4Addr::from(gw))?;
-        writeln!(f, "  MTU     : {}", mtu)?;
-        write!(f, "  PDP     : {}", pdp)?;
-        Ok(())
+#[cfg(feature = "v1_32")]
+unsafe fn get_current_ip_settings_extractor(
+    output: *mut QmiMessageWdsGetCurrentSettingsOutput,
+    _error: *mut *mut GError,
+) -> Result<NetworkSettings, ()> {
+    let mtu = get_optional(|value, error| {
+        qmi_message_wds_get_current_settings_output_get_mtu(output, value, error)
+    });
+    let pdp = get_optional(|value, error| {
+        qmi_message_wds_get_current_settings_output_get_pdp_type(output, value, error)
+    });
+    let apn = get_optional(|value, error| {
+        qmi_message_wds_get_current_settings_output_get_apn_name(output, value, error)
+    });
+    let ipv4_address = get_optional(|value, error| {
+        qmi_message_wds_get_current_settings_output_get_ipv4_address(output, value, error)
+    });
+    let ipv4_gateway = get_optional(|value, error| {
+        qmi_message_wds_get_current_settings_output_get_ipv4_gateway_address(output, value, error)
+    });
+    let ipv4_netmask = get_optional(|value, error| {
+        qmi_message_wds_get_current_settings_output_get_ipv4_gateway_subnet_mask(
+            output, value, error,
+        )
+    });
+    let ipv4_primary_dns = get_optional(|value, error| {
+        qmi_message_wds_get_current_settings_output_get_primary_ipv4_dns_address(
+            output, value, error,
+        )
+    });
+    let ipv4_secondary_dns = get_optional(|value, error| {
+        qmi_message_wds_get_current_settings_output_get_secondary_ipv4_dns_address(
+            output, value, error,
+        )
+    });
+    let ipv6_addr = get_optional_ipv6_with_prefix_len(|value, len, error| {
+        qmi_message_wds_get_current_settings_output_get_ipv6_address(output, value, len, error)
+    });
+    let ipv6_gw = get_optional_ipv6_with_prefix_len(|value, len, error| {
+        qmi_message_wds_get_current_settings_output_get_ipv6_gateway_address(
+            output, value, len, error,
+        )
+    });
+    let ipv6_primary_dns = get_optional_ipv6(|value, error| {
+        qmi_message_wds_get_current_settings_output_get_ipv6_primary_dns_address(
+            output, value, error,
+        )
+    });
+    let ipv6_secondary_dns = get_optional_ipv6(|value, error| {
+        qmi_message_wds_get_current_settings_output_get_ipv6_secondary_dns_address(
+            output, value, error,
+        )
+    });
+    let apn = apn
+        .filter(|value| !value.is_null())
+        .map(|s| crate::c_char_to_string(s));
+    Ok(NetworkSettings {
+        pdp_type: pdp.map(|pdp| from_glib(pdp)),
+        mtu,
+        apn,
+        ipv4: Ipv4NetworkSettings {
+            address: ipv4_address.map(Ipv4Addr::from),
+            gateway: ipv4_gateway.map(Ipv4Addr::from),
+            netmask: ipv4_netmask.map(Ipv4Addr::from),
+            primary_dns: ipv4_primary_dns.map(Ipv4Addr::from),
+            secondary_dns: ipv4_secondary_dns.map(Ipv4Addr::from),
+        },
+        ipv6: Ipv6NetworkSettings {
+            address: ipv6_addr.map(|ipv6| ipv6.0),
+            prefix_length: ipv6_addr.map(|ipv6| ipv6.1),
+            gateway: ipv6_gw.map(|ipv6| ipv6.0),
+            gateway_prefix_length: ipv6_gw.map(|ipv6| ipv6.1),
+            primary_dns: ipv6_primary_dns,
+            secondary_dns: ipv6_secondary_dns,
+        },
+    })
+}
+
+#[cfg(feature = "v1_32")]
+unsafe fn get_optional<F, T: Default>(mut f: F) -> Option<T>
+where
+    F: FnMut(*mut T, *mut *mut GError) -> gboolean,
+{
+    let mut value: T = T::default();
+
+    match f(&mut value, null_mut()) {
+        GFALSE => None,
+        _ => Some(value),
     }
 }
+
+#[cfg(feature = "v1_32")]
+unsafe fn get_optional_ipv6<F>(mut getter: F) -> Option<Ipv6Addr>
+where
+    F: FnMut(*mut *mut GArray, *mut *mut GError) -> gboolean,
+{
+    let mut array: *mut GArray = null_mut();
+
+    if getter(&mut array, null_mut()) == GFALSE || array.is_null() {
+        return None;
+    }
+
+    if (*array).len != 16 {
+        return None;
+    }
+
+    let bytes = std::slice::from_raw_parts((*array).data.cast::<u8>(), 16);
+
+    let mut address = [0_u8; 16];
+    address.copy_from_slice(bytes);
+
+    Some(Ipv6Addr::from(address))
+}
+
+#[cfg(feature = "v1_32")]
+unsafe fn get_optional_ipv6_with_prefix_len<F>(mut getter: F) -> Option<(Ipv6Addr, u8)>
+where
+    F: FnMut(*mut *mut GArray, *mut u8, *mut *mut GError) -> gboolean,
+{
+    let mut array: *mut GArray = null_mut();
+    let mut prefix_len: u8 = 0;
+
+    if getter(&mut array, &mut prefix_len, null_mut()) == GFALSE || array.is_null() {
+        return None;
+    }
+
+    if (*array).len != 16 {
+        return None;
+    }
+
+    let bytes = std::slice::from_raw_parts((*array).data.cast::<u8>(), 16);
+
+    let mut address = [0_u8; 16];
+    address.copy_from_slice(bytes);
+
+    Some((Ipv6Addr::from(address), prefix_len))
+}
+
+request_with_writer_and_extractor!(
+    /// Asynchronously sends a Get Current ip Settings request to the device.
+    #[cfg(feature = "v1_32")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "v1_32")))]
+    get_current_ip_settings,
+    get_current_ip_settings_writer,
+    settings: WdsRequestedSettings,
+    qmi_message_wds_get_current_settings_input_new,
+    qmi_message_wds_get_current_settings_input_unref,
+    qmi_client_wds_get_current_settings,
+    qmi_client_wds_get_current_settings_finish,
+    qmi_message_wds_get_current_settings_output_get_result,
+    qmi_message_wds_get_current_settings_output_unref,
+    NetworkSettings,
+    get_current_ip_settings_extractor,
+    "get_current_ip_settings"
+);
+
+unsafe fn start_ipv4_network_writer(
+    input: *mut QmiMessageWdsStartNetworkInput,
+    error: *mut *mut GError,
+    apn: impl AsRef<str>,
+) -> gboolean {
+    let c_string = CString::new(apn.as_ref()).expect("APN contains a NULL byte");
+    let ret = qmi_message_wds_start_network_input_set_apn(input, c_string.as_ptr(), error);
+    if ret == GFALSE {
+        return ret;
+    }
+    qmi_message_wds_start_network_input_set_ip_family_preference(
+        input,
+        WdsIpFamily::Ipv4.into_glib(),
+        error,
+    )
+}
+
+unsafe fn start_ipv4_network_extractor(
+    output: *mut QmiMessageWdsStartNetworkOutput,
+    error: *mut *mut GError,
+) -> Result<u32, ()> {
+    let mut pdh = 0;
+    let ret = qmi_message_wds_start_network_output_get_packet_data_handle(output, &mut pdh, error);
+    match ret {
+        GFALSE => Err(()),
+        _ => Ok(pdh),
+    }
+}
+
+request_with_writer_and_extractor!(
+    // Asynchronously sends a Start Network request to the device.
+    start_ipv4_network,
+    start_ipv4_network_writer,
+    apn: impl AsRef<str>,
+    qmi_message_wds_start_network_input_new,
+    qmi_message_wds_start_network_input_unref,
+    qmi_client_wds_start_network,
+    qmi_client_wds_start_network_finish,
+    qmi_message_wds_start_network_output_get_result,
+    qmi_message_wds_start_network_output_unref,
+    u32,
+    start_ipv4_network_extractor,
+    "start_ipv4_network"
+);
+
+unsafe fn stop_ipv4_network_writer(
+    input: *mut QmiMessageWdsStopNetworkInput,
+    error: *mut *mut GError,
+    pdh: u32,
+) -> gboolean {
+    qmi_message_wds_stop_network_input_set_packet_data_handle(input, pdh, error)
+}
+
+setter_with_writer!(
+    /// Stops the packet data session identified by the supplied handle.
+    stop_ipv4_network,
+    stop_ipv4_network_writer,
+    pdh: u32,
+    qmi_message_wds_stop_network_input_new,
+    qmi_message_wds_stop_network_input_unref,
+    qmi_client_wds_stop_network,
+    qmi_client_wds_stop_network_finish,
+    qmi_message_wds_stop_network_output_get_result,
+    qmi_message_wds_stop_network_output_unref,
+    "stop_ipv4_network"
+);

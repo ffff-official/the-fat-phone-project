@@ -95,7 +95,7 @@ unsafe fn dial_call_extractor(
     }
 }
 
-setter_with_writer_extended!(
+request_with_writer_and_extractor!(
     /// Asynchronously requests the device to dial the specified phone number.
     ///
     /// Returns the call identifier assigned by the device.
@@ -133,7 +133,7 @@ unsafe fn answer_call_extractor(
     }
 }
 
-setter_with_writer_extended!(
+request_with_writer_and_extractor!(
     /// Asynchronously requests the device to answer to the specified call.
     ///
     /// Returns the call identifier reported by the device.
@@ -171,7 +171,7 @@ unsafe fn end_call_extractor(
     }
 }
 
-setter_with_writer_extended!(
+request_with_writer_and_extractor!(
     /// Asynchronously requests the device to end the specified call.
     ///
     /// Returns the call identifier reported by the device.
@@ -224,7 +224,7 @@ unsafe fn dtmf_tones_request_extractor(
     }
 }
 
-setter_with_writer_extended!(
+request_with_writer_and_extractor!(
     /// Sends DTMF tones on an active voice call.
     ///
     /// Returns the call identifier reported by the modem.

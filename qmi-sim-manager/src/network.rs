@@ -1,7 +1,7 @@
 use crate::{Error, SmResult};
 
 use libqmi_glib_rs::{Device, WdsClient};
-use libqmi_glib_types_rs::{DeviceExpectedDataFormat, WdsConnectionStatus};
+use libqmi_glib_types_rs::{DeviceExpectedDataFormat, WdsConnectionStatus, WdsRequestedSettings};
 
 use futures::TryStreamExt;
 use nix::libc::EEXIST;
@@ -10,6 +10,7 @@ use rtnetlink::packet_route::link::LinkFlags;
 use rtnetlink::{LinkUnspec, new_connection};
 use tokio::runtime::Handle;
 
+use std::cell::RefCell;
 use std::net::Ipv4Addr;
 use std::sync::OnceLock;
 
@@ -30,6 +31,10 @@ pub(crate) async fn prepare_network_interface(device: &Device) -> SmResult<()> {
     Ok(())
 }
 
+thread_local! {
+    static PDH: RefCell<Option<u32>> = const { RefCell::new(None) }
+}
+
 /// Starts the network and assigns an IP address to the network interface.
 pub(crate) async fn start_network(
     wds_client: &mut WdsClient,
@@ -37,18 +42,30 @@ pub(crate) async fn start_network(
     apn_name: &str,
 ) -> SmResult<WdsConnectionStatus> {
     tracing::debug!("net : {:?}", wds_client.get_packet_service_status().await?);
-    wds_client.start_network(apn_name).await?;
+    let pdh = wds_client.start_ipv4_network(apn_name).await?;
+    PDH.replace(Some(pdh));
     let new_status = wds_client.get_packet_service_status().await?;
     tracing::debug!("net : {:?}", new_status);
-    let ipv4_settings = wds_client.get_current_ipv4_settings().await?;
-    tracing::debug!("{}", ipv4_settings);
+    use WdsRequestedSettings as Q;
+    let ipv4_settings = wds_client
+        .get_current_ip_settings(
+            Q::IP_ADDRESS | Q::GATEWAY_INFO | Q::PDP_TYPE | Q::MTU | Q::APN_NAME,
+        )
+        .await?;
+    tracing::debug!("{:#?}", ipv4_settings);
 
     async move {
         let ret = tokio_handle
             .spawn(async move {
-                let ipv4 = Ipv4Addr::from(ipv4_settings.ipv4.ok_or_else(|| "no ipv4".to_string())?);
-                let mask = Ipv4Addr::from(ipv4_settings.mask.ok_or_else(|| "no mask".to_string())?);
-                // let gw = Ipv4Addr::from(ipv4_settings.gw.ok_or_else(|| "no gateway".to_string())?);
+                let ipv4 = ipv4_settings
+                    .ipv4
+                    .address
+                    .ok_or_else(|| "no ipv4".to_string())?;
+                let mask = ipv4_settings
+                    .ipv4
+                    .netmask
+                    .ok_or_else(|| "no mask".to_string())?;
+                // let gw = ipv4_settings.gw.ok_or_else(|| "no gateway".to_string())?;
 
                 let (connection, handle, _) = new_connection()?;
                 tokio::spawn(connection);
@@ -116,7 +133,10 @@ pub(crate) async fn start_network(
 /// Stops the network.
 pub(crate) async fn stop_network(wds_client: &mut WdsClient) -> SmResult<WdsConnectionStatus> {
     tracing::debug!("net : {:?}", wds_client.get_packet_service_status().await?);
-    wds_client.stop_network().await?;
+    let pdh = PDH.take();
+    if let Some(pdh) = pdh {
+        wds_client.stop_ipv4_network(pdh).await?;
+    }
     let new_status = wds_client.get_packet_service_status().await?;
     tracing::debug!("net : {:?}", new_status);
     Ok(new_status)

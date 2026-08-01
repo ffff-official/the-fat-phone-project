@@ -509,7 +509,7 @@ macro_rules! setter_with_writer {
         $message_output_unref:ident,
         $context:literal
     ) => {
-        setter_with_writer_extended!(
+        request_with_writer_and_extractor!(
             $(#[$meta])*
             $method_name,
             $writer,
@@ -532,7 +532,7 @@ macro_rules! setter_with_writer {
 /// In addition to writing the input parameters, this macro accepts a return
 /// type and invokes a final extraction function on the successful QMI output
 /// to produce the value returned by the generated method.
-macro_rules! setter_with_writer_extended {
+macro_rules! request_with_writer_and_extractor {
     (
         $(#[$meta:meta])*
         $method_name:ident,
