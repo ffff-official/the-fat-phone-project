@@ -101,7 +101,7 @@ setter_with_writer_extended!(
     /// Returns the call identifier assigned by the device.
     dial_call,
     dial_call_writer,
-    impl AsRef<str>,
+    phone_number: impl AsRef<str>,
     qmi_message_voice_dial_call_input_new,
     qmi_message_voice_dial_call_input_unref,
     qmi_client_voice_dial_call,
@@ -139,7 +139,7 @@ setter_with_writer_extended!(
     /// Returns the call identifier reported by the device.
     answer_call,
     answer_call_writer,
-    u8,
+    call_id: u8,
     qmi_message_voice_answer_call_input_new,
     qmi_message_voice_answer_call_input_unref,
     qmi_client_voice_answer_call,
@@ -177,7 +177,7 @@ setter_with_writer_extended!(
     /// Returns the call identifier reported by the device.
     end_call,
     end_call_writer,
-    u8,
+    call_id: u8,
     qmi_message_voice_end_call_input_new,
     qmi_message_voice_end_call_input_unref,
     qmi_client_voice_end_call,
@@ -232,7 +232,7 @@ setter_with_writer_extended!(
     #[cfg_attr(docsrs, doc(cfg(feature = "v1_32")))]
     dtmf_tones_request,
     dtmf_tones_request_writer,
-    VoiceBurstDtmfInput,
+    input: VoiceBurstDtmfInput,
     qmi_message_voice_burst_dtmf_input_new,
     qmi_message_voice_burst_dtmf_input_unref,
     qmi_client_voice_burst_dtmf,

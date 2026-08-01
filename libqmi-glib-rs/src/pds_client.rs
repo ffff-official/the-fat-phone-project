@@ -112,7 +112,7 @@ setter!(
     /// be enabled on the device.
     set_gps_service_state,
     qmi_message_pds_set_gps_service_state_input_set_state,
-    bool,
+    gps_service_state: bool,
     qmi_message_pds_set_gps_service_state_input_new,
     qmi_message_pds_set_gps_service_state_input_unref,
     qmi_client_pds_set_gps_service_state,
@@ -138,7 +138,7 @@ setter!(
     /// Enables or disables automatic GPS tracking.
     set_auto_tracking_state,
     qmi_message_pds_set_auto_tracking_state_input_set_state,
-    bool,
+    auto_tracking_state: bool,
     qmi_message_pds_set_auto_tracking_state_input_new,
     qmi_message_pds_set_auto_tracking_state_input_unref,
     qmi_client_pds_set_auto_tracking_state,
@@ -244,7 +244,7 @@ setter_with_writer!(
     #[cfg_attr(docsrs, doc(cfg(feature = "v1_12")))]
     set_default_tracking_session,
     set_default_tracking_session_writer,
-    PdsDefaultTrackingSession,
+    session: PdsDefaultTrackingSession,
     qmi_message_pds_set_default_tracking_session_input_new,
     qmi_message_pds_set_default_tracking_session_input_unref,
     qmi_client_pds_set_default_tracking_session,

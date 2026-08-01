@@ -486,7 +486,7 @@ setter_with_writer!(
     #[cfg_attr(docsrs, doc(cfg(feature = "v1_18")))]
     power_off_sim,
     power_off_sim_writer,
-    u8,
+    slot: u8,
     qmi_message_uim_power_off_sim_input_new,
     qmi_message_uim_power_off_sim_input_unref,
     qmi_client_uim_power_off_sim,
@@ -513,7 +513,7 @@ setter_with_writer!(
     #[cfg_attr(docsrs, doc(cfg(feature = "v1_18")))]
     power_on_sim,
     power_on_sim_writer,
-    u8,
+    slot: u8,
     qmi_message_uim_power_on_sim_input_new,
     qmi_message_uim_power_on_sim_input_unref,
     qmi_client_uim_power_on_sim,
@@ -555,7 +555,7 @@ setter_with_writer!(
     #[cfg_attr(docsrs, doc(cfg(feature = "v1_26")))]
     switch_slot,
     switch_slot_writer,
-    UimSlotMapping,
+    slot_mapping: UimSlotMapping,
     qmi_message_uim_switch_slot_input_new,
     qmi_message_uim_switch_slot_input_unref,
     qmi_client_uim_switch_slot,

@@ -51,7 +51,7 @@ setter!(
     /// modem, such as online, low-power, offline, or reset mode.
     set_operating_mode,
     qmi_message_dms_set_operating_mode_input_set_mode,
-    DmsOperatingMode,
+    mode: DmsOperatingMode,
     qmi_message_dms_set_operating_mode_input_new,
     qmi_message_dms_set_operating_mode_input_unref,
     qmi_client_dms_set_operating_mode,
@@ -601,7 +601,7 @@ setter_with_writer!(
     /// The current user lock code must be provided to authorize the operation.
     set_user_lock_state,
     set_user_lock_state_writer,
-    DmsUserLockState,
+    state: DmsUserLockState,
     qmi_message_dms_set_user_lock_state_input_new,
     qmi_message_dms_set_user_lock_state_input_unref,
     qmi_client_dms_set_user_lock_state,

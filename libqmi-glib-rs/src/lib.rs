@@ -409,7 +409,7 @@ macro_rules! setter {
         $(#[$meta:meta])*
         $method_name:ident,
         $qmi_function:path,
-        $parameter_type:ty,
+        $parameter_name:ident: $parameter_type:ty,
         $message_input_new:ident,
         $message_input_unref:ident,
         $validation_start:ident,
@@ -420,7 +420,7 @@ macro_rules! setter {
     ) => {
         impl Context {
             $(#[$meta])*
-            pub async fn $method_name(&self, parameter: $parameter_type) -> QmiResult<()> {
+            pub async fn $method_name(&self, $parameter_name: $parameter_type) -> QmiResult<()> {
                 unsafe extern "C" fn callback(
                     client: *mut $crate::__macro_support::GObject,
                     res: *mut $crate::__macro_support::GAsyncResult,
@@ -456,7 +456,7 @@ macro_rules! setter {
                 let mut error: *mut GError = $crate::__macro_support::null_mut();
 
                 use $crate::__macro_support::IntoGlib;
-                let ret = unsafe { $qmi_function(input, parameter.into_glib(), &mut error) };
+                let ret = unsafe { $qmi_function(input, $parameter_name.into_glib(), &mut error) };
                 if ret == $crate::__macro_support::GFALSE {
                     unsafe { $message_input_unref(input) };
                     Err((error, concat!($context, " assign")))?;
@@ -500,7 +500,7 @@ macro_rules! setter_with_writer {
         $(#[$meta:meta])*
         $method_name:ident,
         $writer:path,
-        $parameter_type:ty,
+        $parameter_name:ident: $parameter_type:ty,
         $message_input_new:ident,
         $message_input_unref:ident,
         $validation_start:ident,
@@ -513,7 +513,7 @@ macro_rules! setter_with_writer {
             $(#[$meta])*
             $method_name,
             $writer,
-            $parameter_type,
+            $parameter_name: $parameter_type,
             $message_input_new,
             $message_input_unref,
             $validation_start,
@@ -537,7 +537,7 @@ macro_rules! setter_with_writer_extended {
         $(#[$meta:meta])*
         $method_name:ident,
         $writer:path,
-        $parameter_type:ty,
+        $parameter_name:ident: $parameter_type:ty,
         $message_input_new:ident,
         $message_input_unref:ident,
         $validation_start:ident,
@@ -550,7 +550,7 @@ macro_rules! setter_with_writer_extended {
     ) => {
         impl Context {
             $(#[$meta])*
-            pub async fn $method_name(&self, parameter: $parameter_type) -> QmiResult<$return_type> {
+            pub async fn $method_name(&self, $parameter_name: $parameter_type) -> QmiResult<$return_type> {
                 unsafe extern "C" fn callback(
                     client: *mut $crate::__macro_support::GObject,
                     res: *mut $crate::__macro_support::GAsyncResult,
@@ -588,7 +588,7 @@ macro_rules! setter_with_writer_extended {
                 }
 
                 let mut error: *mut GError = $crate::__macro_support::null_mut();
-                let ret = unsafe { $writer(input, &mut error, parameter) };
+                let ret = unsafe { $writer(input, &mut error, $parameter_name) };
                 if ret == $crate::__macro_support::GFALSE {
                     unsafe { $message_input_unref(input) };
                     Err((error, concat!($context, " assign")))?;
