@@ -1,7 +1,7 @@
 use crate::{Error, Event, SmResult, engine, messaging, network};
 
-use libqmi_glib_rs::nas_client::NasEventReport;
-use libqmi_glib_rs::nas_client::SignalInfo;
+use libqmi_glib_rs::nas::NasEventReport;
+use libqmi_glib_rs::nas::SignalInfo;
 use libqmi_glib_rs::{Device, DmsClient, NasClient, UimClient, VoiceClient, WdsClient, WmsClient};
 
 use futures::channel::mpsc;
@@ -68,6 +68,7 @@ pub(crate) fn init_thread(
                     .await?;
                 let mut sm_event_sender_clone = sm_event_sender.clone();
                 let radio_interfaces = dms_client.get_capabilities().await?.radio_interfaces;
+                let radio_interfaces_clone = radio_interfaces.clone();
                 nas_client
                     .set_event_report(
                         Box::new(
@@ -84,13 +85,12 @@ pub(crate) fn init_thread(
                                 }
                             },
                         ),
-                        radio_interfaces,
+                        &radio_interfaces,
                     )
                     .await?;
                 let mut sm_event_sender_clone = sm_event_sender.clone();
                 nas_client
                     .set_signal_info(
-                        &dms_client,
                         Box::new(
                             move |infos_res: Result<SignalInfo, libqmi_glib_rs::QmiError>| {
                                 let ret = sm_event_sender_clone.start_send(match infos_res {
@@ -105,6 +105,7 @@ pub(crate) fn init_thread(
                                 }
                             },
                         ),
+                        &radio_interfaces_clone,
                     )
                     .await?;
 

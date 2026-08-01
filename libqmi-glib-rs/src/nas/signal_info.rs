@@ -154,8 +154,8 @@ impl NasClient {
     /// The callback is invoked whenever the modem reports updated signal
     /// information for one or more radio access technologies.
     ///
-    /// The DMS client is used to determine the radio interfaces supported by the
-    /// device so that signal reporting can be configured accordingly.
+    /// The [`DmsClient`] must be used to determine the radio interfaces supported by the
+    /// device so that signal reporting can be configured accordingly. [`DmsClient::get_capabilities`]
     ///
     /// # Errors
     ///
@@ -163,8 +163,8 @@ impl NasClient {
     /// be applied to the modem.
     pub async fn set_signal_info(
         &mut self,
-        dms_client: &DmsClient,
         cb: SignalInfoCallback,
+        dms_radio_interfaces: &[DmsRadioInterface],
     ) -> QmiResult<()> {
         unsafe {
             let cb_ptr = Box::into_raw(Box::new(cb)).cast();
@@ -216,7 +216,7 @@ impl NasClient {
 
             rx.await.map_err(|_| QmiError::cb_droped())??;
 
-            let radio_interfaces = dms_client.get_capabilities().await?.radio_interfaces;
+            let radio_interfaces = dms_radio_interfaces;
             let mut accepted = Vec::new();
 
             for radio in SETTERS {

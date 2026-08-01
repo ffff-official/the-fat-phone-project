@@ -793,16 +793,16 @@ macro_rules! event {
     }
 }
 
-pub mod dms_client;
-pub mod nas_client;
-pub mod pds_client;
-pub mod qmi_device;
-pub mod uim_client;
+pub mod device;
+pub mod dms;
+pub mod nas;
+pub mod pds;
+pub mod uim;
 #[cfg(feature = "v1_14")]
 #[cfg_attr(docsrs, doc(cfg(feature = "v1_14")))]
-pub mod voice_client;
-pub mod wds_client;
-pub mod wms_client;
+pub mod voice;
+pub mod wds;
+pub mod wms;
 
 /// Re-exports all definitions from libqmi-glib-sys.
 pub mod sys {
@@ -814,23 +814,23 @@ pub mod types {
 }
 
 #[doc(inline)]
-pub use dms_client::DmsClient;
+pub use device::Device;
 #[doc(inline)]
-pub use nas_client::NasClient;
+pub use dms::DmsClient;
 #[doc(inline)]
-pub use pds_client::PdsClient;
+pub use nas::NasClient;
 #[doc(inline)]
-pub use qmi_device::Device;
+pub use pds::PdsClient;
 #[doc(inline)]
-pub use uim_client::UimClient;
+pub use uim::UimClient;
 #[cfg(feature = "v1_14")]
 #[cfg_attr(docsrs, doc(cfg(feature = "v1_14")))]
 #[doc(inline)]
-pub use voice_client::VoiceClient;
+pub use voice::VoiceClient;
 #[doc(inline)]
-pub use wds_client::WdsClient;
+pub use wds::WdsClient;
 #[doc(inline)]
-pub use wms_client::WmsClient;
+pub use wms::WmsClient;
 
 use glib_sys::{GError, g_clear_error};
 

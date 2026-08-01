@@ -35,7 +35,7 @@ impl Default for NasEventReport {
 unsafe fn set_event_report_writer(
     input: *mut QmiMessageNasSetEventReportInput,
     _error: *mut *mut GError,
-    radio_interfaces: Vec<DmsRadioInterface>,
+    radio_interfaces: &[DmsRadioInterface],
 ) -> gboolean {
     qmi_message_nas_set_event_report_input_set_rssi_indicator(input, GTRUE, 1, null_mut());
 
@@ -63,8 +63,8 @@ event!(
     /// The callback is invoked whenever the modem emits a NAS event report with
     /// signal information supported by the current radio technology.
     ///
-    /// The DMS client is used to determine the radio interfaces supported by the
-    /// device so that only compatible signal reports are requested.
+    /// The [`DmsClient`] must be used to determine the radio interfaces supported by the
+    /// device so that only compatible signal reports are requested. [`DmsClient::get_capabilities`]
     ///
     /// # Errors
     ///
@@ -72,7 +72,7 @@ event!(
     /// modem.
     set_event_report,
     EventReportCallback,
-    dms_radio_interfaces: Vec<DmsRadioInterface>,
+    dms_radio_interfaces: &[DmsRadioInterface],
     c"event-report",
     libqmi_glib_sys::QmiIndicationNasEventReportOutput,
     event_report_cb,

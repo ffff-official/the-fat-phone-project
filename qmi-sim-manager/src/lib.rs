@@ -79,7 +79,7 @@ pub mod mms {
 }
 /// Types related to VOICE calls.
 pub mod voice {
-    pub use libqmi_glib_rs::voice_client::*;
+    pub use libqmi_glib_rs::voice::*;
 }
 /// Types related to UIM module.
 pub mod uim {
@@ -88,11 +88,11 @@ pub mod uim {
 }
 /// Types related to DMS module.
 pub mod dms {
-    pub use libqmi_glib_rs::dms_client::*;
+    pub use libqmi_glib_rs::dms::*;
 }
 /// Types related to NAS module.
 pub mod nas {
-    pub use libqmi_glib_rs::nas_client::*;
+    pub use libqmi_glib_rs::nas::*;
 }
 /// *Native public import from libqmi-glib-rs.*
 pub mod libqmi {
