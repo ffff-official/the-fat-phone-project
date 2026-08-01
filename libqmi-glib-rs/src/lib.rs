@@ -126,17 +126,18 @@ macro_rules! new_client_impl {
     ) => {
         /// Asynchronously allocates a new [`Self`].
         pub async fn new(device: &Device) -> QmiResult<$client_type> {
-            let (tx, rx) = $crate::__macro_support::oneshot::channel::<
-                QmiResult<$crate::__macro_support::NonNull<$ffi_client_type>>,
+            use $crate::__macro_support::*;
+            let (tx, rx) = oneshot::channel::<
+                QmiResult<NonNull<$ffi_client_type>>,
             >();
 
             unsafe {
-                $crate::__macro_support::qmi_device_allocate_client(
+                qmi_device_allocate_client(
                     device.as_ptr(),
-                    $crate::__macro_support::IntoGlib::into_glib($service),
-                    $crate::__macro_support::QMI_CID_NONE as _,
+                    IntoGlib::into_glib($service),
+                    QMI_CID_NONE as _,
                     $crate::OPERATION_TIMEOUT,
-                    $crate::__macro_support::null_mut(),
+                    null_mut(),
                     Some(allocate_client_cb),
                     Box::into_raw(Box::new(tx)).cast(),
                 )
@@ -157,11 +158,12 @@ macro_rules! close_client_impl {
     ($context:literal) => {
         /// Asynchronously releases the client from the [`Device`].
         pub async fn close(self) -> QmiResult<()> {
+            use $crate::__macro_support::*;
             let ref_count = unsafe {
                 *(self
                     .client
                     .as_ptr()
-                    .cast::<$crate::__macro_support::GObject>())
+                    .cast::<GObject>())
             }
             .ref_count;
             if ref_count != 2 {
@@ -170,16 +172,15 @@ macro_rules! close_client_impl {
                     concat!($context, " close"),
                 ))?;
             }
-            let (tx, rx) = $crate::__macro_support::oneshot::channel::<QmiResult<()>>();
+            let (tx, rx) = oneshot::channel::<QmiResult<()>>();
 
-            use $crate::__macro_support::IntoGlib;
             unsafe {
-                $crate::__macro_support::qmi_device_release_client(
+                qmi_device_release_client(
                     self.device.as_ptr(),
                     self.client.as_ptr().cast(),
-                    $crate::__macro_support::DeviceReleaseClientFlags::RELEASE_CID.into_glib(),
+                    DeviceReleaseClientFlags::RELEASE_CID.into_glib(),
                     $crate::OPERATION_TIMEOUT,
-                    $crate::__macro_support::null_mut(),
+                    null_mut(),
                     Some(release_client_cb),
                     Box::into_raw(Box::new(tx)).cast(),
                 );
@@ -200,19 +201,20 @@ macro_rules! allocate_client_callback {
             res: *mut $crate::__macro_support::GAsyncResult,
             user_data: *mut $crate::__macro_support::c_void,
         ) {
-            let sender = Box::from_raw(user_data.cast::<$crate::__macro_support::oneshot::Sender<
-                QmiResult<$crate::__macro_support::NonNull<$client_type>>,
+            use $crate::__macro_support::*;
+            let sender = Box::from_raw(user_data.cast::<oneshot::Sender<
+                QmiResult<NonNull<$client_type>>,
             >>());
 
-            let mut error: *mut GError = $crate::__macro_support::null_mut();
+            let mut error: *mut GError = null_mut();
 
-            let client = $crate::__macro_support::qmi_device_allocate_client_finish(
+            let client = qmi_device_allocate_client_finish(
                 device.cast(),
                 res,
                 &mut error,
             );
 
-            let output = $crate::__macro_support::NonNull::new(client.cast::<$client_type>())
+            let output = NonNull::new(client.cast::<$client_type>())
                 .ok_or_else(|| (error, $context).into());
 
             drop(sender.send(output).inspect_err(cannot_send));
@@ -230,19 +232,20 @@ macro_rules! release_client_callback {
             res: *mut $crate::__macro_support::GAsyncResult,
             user_data: *mut $crate::__macro_support::c_void,
         ) {
+            use $crate::__macro_support::*;
             let sender = Box::from_raw(
-                user_data.cast::<$crate::__macro_support::oneshot::Sender<QmiResult<()>>>(),
+                user_data.cast::<oneshot::Sender<QmiResult<()>>>(),
             );
-            let mut error: *mut GError = $crate::__macro_support::null_mut();
+            let mut error: *mut GError = null_mut();
 
-            let res = $crate::__macro_support::qmi_device_release_client_finish(
+            let res = qmi_device_release_client_finish(
                 device.cast(),
                 res,
                 &mut error,
             );
 
             let output = match res {
-                $crate::__macro_support::GFALSE => Err((error, $context).into()),
+                GFALSE => Err((error, $context).into()),
                 _ => Ok(()),
             };
             drop(sender.send(output).inspect_err(cannot_send));
@@ -273,22 +276,23 @@ macro_rules! getter {
         impl Context {
             $(#[$meta])*
             pub async fn $method_name(&self) -> QmiResult<$return_type> {
+                use $crate::__macro_support::*;
                 unsafe extern "C" fn callback(
-                    client: *mut $crate::__macro_support::GObject,
-                    res: *mut $crate::__macro_support::GAsyncResult,
-                    user_data: *mut $crate::__macro_support::c_void,
+                    client: *mut GObject,
+                    res: *mut GAsyncResult,
+                    user_data: *mut c_void,
                 ) {
-                    let sender = Box::from_raw(user_data.cast::<$crate::__macro_support::oneshot::Sender<QmiResult<$return_type>>>());
+                    let sender = Box::from_raw(user_data.cast::<oneshot::Sender<QmiResult<$return_type>>>());
 
                     let result = get_result(client, res);
 
                     drop(sender.send(result).inspect_err(cannot_send));
                 }
                 unsafe fn get_result(
-                    client: *mut $crate::__macro_support::GObject,
-                    res: *mut $crate::__macro_support::GAsyncResult,
+                    client: *mut GObject,
+                    res: *mut GAsyncResult,
                 ) -> QmiResult<$return_type> {
-                    let mut error: *mut GError = $crate::__macro_support::null_mut();
+                    let mut error: *mut GError = null_mut();
 
                     let output = $validation_finish(client.cast(), res, &mut error);
                     if output.is_null() {
@@ -296,7 +300,7 @@ macro_rules! getter {
                     }
 
                     let ret = $message_output_get_result(output, &mut error);
-                    if ret == $crate::__macro_support::GFALSE {
+                    if ret == GFALSE {
                         $message_output_unref(output);
                         return Err((error, concat!($context, " get result")).into());
                     }
@@ -308,19 +312,19 @@ macro_rules! getter {
                         &mut error,
                     );
                     $message_output_unref(output);
-                    if ret == $crate::__macro_support::GFALSE {
+                    if ret == GFALSE {
                         return Err((error, concat!($context, " exec qmi function")).into());
                     }
-                    Ok($crate::__macro_support::from_glib(flags))
+                    Ok(from_glib(flags))
                 }
-                let (tx, rx) = $crate::__macro_support::oneshot::channel::<QmiResult<$return_type>>();
+                let (tx, rx) = oneshot::channel::<QmiResult<$return_type>>();
 
                 unsafe {
                     $validation_start(
                         self.client.as_ptr(),
-                        $crate::__macro_support::null_mut(),
+                        null_mut(),
                         OPERATION_TIMEOUT,
-                        $crate::__macro_support::null_mut(),
+                        null_mut(),
                         Some(callback),
                         Box::into_raw(Box::new(tx)).cast(),
                     );
@@ -355,22 +359,23 @@ macro_rules! getter_with_extractor {
         impl Context {
             $(#[$meta])*
             pub async fn $method_name(&self) -> QmiResult<$return_type> {
+                use $crate::__macro_support::*;
                 unsafe extern "C" fn callback(
-                    client: *mut $crate::__macro_support::GObject,
-                    res: *mut $crate::__macro_support::GAsyncResult,
-                    user_data: *mut $crate::__macro_support::c_void,
+                    client: *mut GObject,
+                    res: *mut GAsyncResult,
+                    user_data: *mut c_void,
                 ) {
-                    let sender = Box::from_raw(user_data.cast::<$crate::__macro_support::oneshot::Sender<QmiResult<$return_type>>>());
+                    let sender = Box::from_raw(user_data.cast::<oneshot::Sender<QmiResult<$return_type>>>());
 
                     let result = get_result(client, res);
 
                     drop(sender.send(result).inspect_err(cannot_send));
                 }
                 unsafe fn get_result(
-                    client: *mut $crate::__macro_support::GObject,
-                    res: *mut $crate::__macro_support::GAsyncResult,
+                    client: *mut GObject,
+                    res: *mut GAsyncResult,
                 ) -> QmiResult<$return_type> {
-                    let mut error: *mut GError = $crate::__macro_support::null_mut();
+                    let mut error: *mut GError = null_mut();
 
                     let output = $validation_finish(client.cast(), res, &mut error);
                     if output.is_null() {
@@ -378,29 +383,29 @@ macro_rules! getter_with_extractor {
                     }
 
                     let ret = $message_output_get_result(output, &mut error);
-                    if ret == $crate::__macro_support::GFALSE {
+                    if ret == GFALSE {
                         $message_output_unref(output);
                         return Err((error, concat!($context, " get result")).into());
                     }
 
-                    let mut error: *mut GError = $crate::__macro_support::null_mut();
+                    let mut error: *mut GError = null_mut();
                     let mut final_result = <$return_type>::default();
                     let ret = $extractor(output, &mut error, &mut final_result);
 
                     $message_output_unref(output);
-                    if ret == $crate::__macro_support::GFALSE {
+                    if ret == GFALSE {
                         return Err((error, concat!($context, " exec qmi function")).into());
                     }
                     Ok(final_result)
                 }
-                let (tx, rx) = $crate::__macro_support::oneshot::channel::<QmiResult<$return_type>>();
+                let (tx, rx) = oneshot::channel::<QmiResult<$return_type>>();
 
                 unsafe {
                     $validation_start(
                         self.client.as_ptr(),
-                        $crate::__macro_support::null_mut(),
+                        null_mut(),
                         OPERATION_TIMEOUT,
-                        $crate::__macro_support::null_mut(),
+                        null_mut(),
                         Some(callback),
                         Box::into_raw(Box::new(tx)).cast(),
                     );
@@ -437,14 +442,15 @@ macro_rules! setter {
         impl Context {
             $(#[$meta])*
             pub async fn $method_name(&self, $parameter_name: $parameter_type) -> QmiResult<()> {
+                use $crate::__macro_support::*;
                 unsafe extern "C" fn callback(
-                    client: *mut $crate::__macro_support::GObject,
-                    res: *mut $crate::__macro_support::GAsyncResult,
-                    user_data: *mut $crate::__macro_support::c_void,
+                    client: *mut GObject,
+                    res: *mut GAsyncResult,
+                    user_data: *mut c_void,
                 ) {
-                    let sender = Box::from_raw(user_data.cast::<$crate::__macro_support::oneshot::Sender<QmiResult<()>>>());
+                    let sender = Box::from_raw(user_data.cast::<oneshot::Sender<QmiResult<()>>>());
 
-                    let mut error: *mut GError = $crate::__macro_support::null_mut();
+                    let mut error: *mut GError = null_mut();
 
                     let output_ptr = $validation_finish(client.cast(), res, &mut error);
 
@@ -457,7 +463,7 @@ macro_rules! setter {
 
                     let ret = $message_output_get_result(output_ptr, &mut error);
                     let output = match ret {
-                        $crate::__macro_support::GFALSE => Err((error, concat!($context, " cb get_result")).into()),
+                        GFALSE => Err((error, concat!($context, " cb get_result")).into()),
                         _ => Ok(()),
                     };
                     $message_output_unref(output_ptr);
@@ -469,23 +475,23 @@ macro_rules! setter {
                     Err(QmiError::new("Null pointer", $context))?;
                 }
 
-                let mut error: *mut GError = $crate::__macro_support::null_mut();
+                let mut error: *mut GError = null_mut();
 
-                use $crate::__macro_support::IntoGlib;
+                use IntoGlib;
                 let ret = unsafe { $qmi_function(input, $parameter_name.into_glib(), &mut error) };
-                if ret == $crate::__macro_support::GFALSE {
+                if ret == GFALSE {
                     unsafe { $message_input_unref(input) };
                     Err((error, concat!($context, " assign")))?;
                 }
 
-                let (tx, rx) = $crate::__macro_support::oneshot::channel::<QmiResult<()>>();
+                let (tx, rx) = oneshot::channel::<QmiResult<()>>();
 
                 unsafe {
                     $validation_start(
                         self.client.as_ptr(),
                         input,
                         OPERATION_TIMEOUT,
-                        $crate::__macro_support::null_mut(),
+                        null_mut(),
                         Some(callback),
                         Box::into_raw(Box::new(tx)).cast(),
                     )
@@ -567,14 +573,15 @@ macro_rules! request_with_writer_and_extractor {
         impl Context {
             $(#[$meta])*
             pub async fn $method_name(&self, $parameter_name: $parameter_type) -> QmiResult<$return_type> {
+                use $crate::__macro_support::*;
                 unsafe extern "C" fn callback(
-                    client: *mut $crate::__macro_support::GObject,
-                    res: *mut $crate::__macro_support::GAsyncResult,
-                    user_data: *mut $crate::__macro_support::c_void,
+                    client: *mut GObject,
+                    res: *mut GAsyncResult,
+                    user_data: *mut c_void,
                 ) {
-                    let sender = Box::from_raw(user_data.cast::<$crate::__macro_support::oneshot::Sender<QmiResult<$return_type>>>());
+                    let sender = Box::from_raw(user_data.cast::<oneshot::Sender<QmiResult<$return_type>>>());
 
-                    let mut error: *mut GError = $crate::__macro_support::null_mut();
+                    let mut error: *mut GError = null_mut();
 
                     let output_ptr = $validation_finish(client.cast(), res, &mut error);
 
@@ -587,9 +594,9 @@ macro_rules! request_with_writer_and_extractor {
 
                     let ret = $message_output_get_result(output_ptr, &mut error);
                     let output = match ret {
-                        $crate::__macro_support::GFALSE => Err((error, concat!($context, " cb get_result")).into()),
+                        GFALSE => Err((error, concat!($context, " cb get_result")).into()),
                         _ => {
-                            let mut error: *mut GError = $crate::__macro_support::null_mut();
+                            let mut error: *mut GError = null_mut();
                             $return_function(output_ptr, &mut error)
                                 .map_err(|_| (error, concat!($context, " cb return function")).into())
                         }
@@ -603,21 +610,21 @@ macro_rules! request_with_writer_and_extractor {
                     Err(QmiError::new("Null pointer", $context))?;
                 }
 
-                let mut error: *mut GError = $crate::__macro_support::null_mut();
+                let mut error: *mut GError = null_mut();
                 let ret = unsafe { $writer(input, &mut error, $parameter_name) };
-                if ret == $crate::__macro_support::GFALSE {
+                if ret == GFALSE {
                     unsafe { $message_input_unref(input) };
                     Err((error, concat!($context, " assign")))?;
                 }
 
-                let (tx, rx) = $crate::__macro_support::oneshot::channel::<QmiResult<$return_type>>();
+                let (tx, rx) = oneshot::channel::<QmiResult<$return_type>>();
 
                 unsafe {
                     $validation_start(
                         self.client.as_ptr(),
                         input,
                         OPERATION_TIMEOUT,
-                        $crate::__macro_support::null_mut(),
+                        null_mut(),
                         Some(callback),
                         Box::into_raw(Box::new(tx)).cast(),
                     )
@@ -685,13 +692,14 @@ macro_rules! event {
         impl Context {
             $(#[$meta])*
             pub async fn $method_name(&mut self, cb: $callback_type, $parameter_name: $parameter_type) -> QmiResult<()> {
+                use $crate::__macro_support::*;
                 unsafe extern "C" fn callback(
-                    client: *mut $crate::__macro_support::GObject,
-                    res: *mut $crate::__macro_support::GAsyncResult,
-                    user_data: *mut $crate::__macro_support::c_void,
+                    client: *mut GObject,
+                    res: *mut GAsyncResult,
+                    user_data: *mut c_void,
                 ) {
-                    let sender = Box::from_raw(user_data.cast::<$crate::__macro_support::oneshot::Sender<QmiResult<()>>>());
-                    let mut error: *mut GError = $crate::__macro_support::null_mut();
+                    let sender = Box::from_raw(user_data.cast::<oneshot::Sender<QmiResult<()>>>());
+                    let mut error: *mut GError = null_mut();
 
                     let output = $validation_finish(client.cast(), res, &mut error);
                     if output.is_null() {
@@ -711,22 +719,22 @@ macro_rules! event {
                 }
                 // Called when the signal handler is disconnected or when the underlying GObject is destroyed.
                 unsafe extern "C" fn destroyer(
-                    data: *mut $crate::__macro_support::c_void,
-                    _closure: *mut $crate::__macro_support::GClosure
+                    data: *mut c_void,
+                    _closure: *mut GClosure
                 ) {
                     tracing::debug!(concat!("destroy : ", $context));
                     drop(Box::from_raw(data.cast::<$callback_type>()));
                 }
                 unsafe {
                     let cb_ptr = Box::into_raw(Box::new(cb)).cast();
-                    let handler_id = $crate::__macro_support::g_signal_connect_data(
+                    let handler_id = g_signal_connect_data(
                         self.client.as_ptr().cast(),
                         $signal_name.as_ptr(),
                         Some(std::mem::transmute::<
                             unsafe extern "C" fn(
-                                *mut $crate::__macro_support::GObject,
+                                *mut GObject,
                                 *mut $callback_input,
-                                *mut $crate::__macro_support::c_void,
+                                *mut c_void,
                             ),
                             unsafe extern "C" fn(),
                         >($callback_function)),
@@ -743,29 +751,29 @@ macro_rules! event {
 
                     let input = $message_input_new();
                     if input.is_null() {
-                        $crate::__macro_support::g_signal_handler_disconnect(self.client.as_ptr().cast(), handler_id);
+                        g_signal_handler_disconnect(self.client.as_ptr().cast(), handler_id);
                         return Err(QmiError::new("Null input pointer", $context));
                     }
 
-                    let mut error: *mut GError = $crate::__macro_support::null_mut();
+                    let mut error: *mut GError = null_mut();
 
                     let ret = $writer(input, &mut error, $parameter_name);
-                    if ret == $crate::__macro_support::GFALSE {
+                    if ret == GFALSE {
                         $message_input_unref(input);
-                        $crate::__macro_support::g_signal_handler_disconnect(
+                        g_signal_handler_disconnect(
                             self.client.as_ptr().cast(),
                             handler_id,
                         );
                         Err((error, $context))?;
                     }
 
-                    let (tx, rx) = $crate::__macro_support::oneshot::channel::<QmiResult<()>>();
+                    let (tx, rx) = oneshot::channel::<QmiResult<()>>();
 
                     $validation_start(
                         self.client.as_ptr(),
                         input,
                         OPERATION_TIMEOUT,
-                        $crate::__macro_support::null_mut(),
+                        null_mut(),
                         Some(callback),
                         Box::into_raw(Box::new(tx)).cast(),
                     );
@@ -774,13 +782,13 @@ macro_rules! event {
                     let result = match rx.await {
                         Ok(result) => result,
                         Err(_) => {
-                            $crate::__macro_support::g_signal_handler_disconnect(self.client.as_ptr().cast(), handler_id);
+                            g_signal_handler_disconnect(self.client.as_ptr().cast(), handler_id);
                             return Err(QmiError::cb_droped());
                         }
                     };
 
                     if result.is_err() {
-                        $crate::__macro_support::g_signal_handler_disconnect(self.client.as_ptr().cast(), handler_id);
+                        g_signal_handler_disconnect(self.client.as_ptr().cast(), handler_id);
                     } else {
                         tracing::debug!(
                             concat!($context, " waiting for messages...")
