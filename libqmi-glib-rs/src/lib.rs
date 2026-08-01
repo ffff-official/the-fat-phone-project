@@ -140,7 +140,7 @@ macro_rules! new_client_impl {
                     Box::into_raw(Box::new(tx)).cast(),
                 )
             };
-            match rx.await.map_err(|_| QmiError::cb_droped())? {
+            match rx.await.map_err(|_| QmiError::cb_droped("new client"))? {
                 Ok(client) => Ok(Self {
                     device: device.clone(),
                     client,
@@ -177,7 +177,7 @@ macro_rules! close_client_impl {
                     Box::into_raw(Box::new(tx)).cast(),
                 );
             }
-            rx.await.map_err(|_| QmiError::cb_droped())?
+            rx.await.map_err(|_| QmiError::cb_droped("close client"))?
         }
     };
 }
@@ -312,7 +312,7 @@ macro_rules! getter {
                     );
                 }
 
-                rx.await.map_err(|_| QmiError::cb_droped())?
+                rx.await.map_err(|_| QmiError::cb_droped($context))?
             }
         }
     };
@@ -393,7 +393,7 @@ macro_rules! getter_with_extractor {
                     );
                 }
 
-                rx.await.map_err(|_| QmiError::cb_droped())?
+                rx.await.map_err(|_| QmiError::cb_droped($context))?
             }
         }
     };
@@ -480,7 +480,7 @@ macro_rules! setter {
                 };
 
                 unsafe { $message_input_unref(input) };
-                rx.await.map_err(|_| QmiError::cb_droped())?
+                rx.await.map_err(|_| QmiError::cb_droped($context))?
             }
         }
     }
@@ -613,7 +613,7 @@ macro_rules! request_with_writer_and_extractor {
                 };
 
                 unsafe { $message_input_unref(input) };
-                rx.await.map_err(|_| QmiError::cb_droped())?
+                rx.await.map_err(|_| QmiError::cb_droped($context))?
             }
         }
     }
@@ -765,7 +765,7 @@ macro_rules! event {
                         Ok(result) => result,
                         Err(_) => {
                             g_signal_handler_disconnect(self.client.as_ptr().cast(), handler_id);
-                            return Err(QmiError::cb_droped());
+                            return Err(QmiError::cb_droped($context));
                         }
                     };
 
@@ -955,10 +955,10 @@ impl<T: std::error::Error> From<(T, &'static str, ())> for QmiError {
 }
 
 impl QmiError {
-    fn cb_droped() -> Self {
+    fn cb_droped(context: &'static str) -> Self {
         Self {
             message: "cb droped".to_string(),
-            context: "Unknown",
+            context,
             code: None,
             domain: None,
         }

@@ -214,7 +214,8 @@ impl NasClient {
 
             qmi_message_nas_register_indications_input_unref(input);
 
-            rx.await.map_err(|_| QmiError::cb_droped())??;
+            rx.await
+                .map_err(|_| QmiError::cb_droped("set_signal_info"))??;
 
             let radio_interfaces = dms_radio_interfaces;
             let mut accepted = Vec::new();
@@ -235,7 +236,10 @@ impl NasClient {
                         self.submit(input, tx);
                         qmi_message_nas_config_signal_info_v2_input_unref(input);
 
-                        let ret = rx.await.map_err(|_| QmiError::cb_droped())?.is_ok();
+                        let ret = rx
+                            .await
+                            .map_err(|_| QmiError::cb_droped("set_signal_info"))?
+                            .is_ok();
                         if ret {
                             tracing::debug!(
                                 "Submitting success for {:?} on {:?}",
@@ -282,7 +286,8 @@ impl NasClient {
             self.submit(input, tx);
             qmi_message_nas_config_signal_info_v2_input_unref(input);
 
-            rx.await.map_err(|_| QmiError::cb_droped())?
+            rx.await
+                .map_err(|_| QmiError::cb_droped("set_signal_info"))?
         }
     }
 

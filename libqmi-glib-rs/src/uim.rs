@@ -148,7 +148,7 @@ impl UimClient {
         unsafe {
             qmi_message_uim_verify_pin_input_unref(input);
         }
-        rx.await.map_err(|_| QmiError::cb_droped())?
+        rx.await.map_err(|_| QmiError::cb_droped("verify_pin"))?
     }
 }
 

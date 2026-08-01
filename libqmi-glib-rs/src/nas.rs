@@ -117,7 +117,7 @@ macro_rules! nas_getter {
                     );
                 }
 
-                rx.await.map_err(|_| QmiError::cb_droped())?
+                rx.await.map_err(|_| QmiError::cb_droped($context))?
             }
         }
     };
@@ -187,7 +187,7 @@ macro_rules! nas_setter {
                 };
 
                 unsafe { qmi_message_nas_set_system_selection_preference_input_unref(input) };
-                rx.await.map_err(|_| QmiError::cb_droped())?
+                rx.await.map_err(|_| QmiError::cb_droped($context))?
             }
         }
     }
@@ -255,7 +255,7 @@ macro_rules! nas_getter_with_extractor {
                     );
                 }
 
-                rx.await.map_err(|_| QmiError::cb_droped())?
+                rx.await.map_err(|_| QmiError::cb_droped($context))?
             }
         }
     };
@@ -325,7 +325,7 @@ macro_rules! nas_setter_with_writer {
                 };
 
                 unsafe { qmi_message_nas_set_system_selection_preference_input_unref(input) };
-                rx.await.map_err(|_| QmiError::cb_droped())?
+                rx.await.map_err(|_| QmiError::cb_droped($context))?
             }
         }
     }

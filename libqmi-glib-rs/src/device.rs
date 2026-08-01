@@ -90,7 +90,7 @@ impl Device {
             Box::into_raw(Box::new(tx)).cast(),
         );
 
-        rx.await.map_err(|_| QmiError::cb_droped())?
+        rx.await.map_err(|_| QmiError::cb_droped("from_gfile"))?
     }
 
     /// Asynchronously opens a [`Device`] for I/O.
@@ -107,7 +107,7 @@ impl Device {
                 Box::into_raw(Box::new(tx)).cast(),
             )
         };
-        rx.await.map_err(|_| QmiError::cb_droped())?
+        rx.await.map_err(|_| QmiError::cb_droped("open device"))?
     }
 
     /// Asynchronously closes a [`Device`], preventing any further I/O.
@@ -123,7 +123,7 @@ impl Device {
                 Box::into_raw(Box::new(tx)).cast(),
             );
         }
-        rx.await.map_err(|_| QmiError::cb_droped())?
+        rx.await.map_err(|_| QmiError::cb_droped("close device"))?
     }
 
     /// Get the WWAN interface name associated with the QMI control port.

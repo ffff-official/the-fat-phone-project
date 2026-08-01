@@ -118,7 +118,7 @@ impl WmsClient {
                 Box::into_raw(Box::new(tx)).cast(),
             )
         }
-        let ret: Result<u64, QmiError> = rx.await.map_err(|_| QmiError::cb_droped())?;
+        let ret: Result<u64, QmiError> = rx.await.map_err(|_| QmiError::cb_droped("send_sms"))?;
         unsafe {
             g_array_unref(tpdu);
             qmi_message_wms_raw_send_input_unref(input);
