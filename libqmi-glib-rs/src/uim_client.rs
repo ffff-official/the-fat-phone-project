@@ -201,7 +201,7 @@ unsafe fn get_card_status_extractor(
         error,
     );
 
-    if ret == GTRUE && !cards.is_null() {
+    if ret == GTRUE && !cards.is_null() && (*cards).len > 0 {
         let slice = std::slice::from_raw_parts(
             (*cards).data.cast::<QmiCardStatusOutputElem>(),
             (*cards).len as usize,
@@ -283,7 +283,7 @@ unsafe fn get_supported_messages_extractor(
     let ret =
         qmi_message_uim_get_supported_messages_output_get_list(output, &mut value_list, error);
 
-    if ret == GTRUE && !value_list.is_null() {
+    if ret == GTRUE && !value_list.is_null() && (*value_list).len > 0 {
         let slice =
             std::slice::from_raw_parts((*value_list).data.cast::<u8>(), (*value_list).len as usize);
 
@@ -423,7 +423,7 @@ unsafe fn get_slot_status_extractor(
             let eid = eid_elements
                 .and_then(|elements| elements.get(index))
                 .and_then(|element| {
-                    if element.eid.is_null() {
+                    if element.eid.is_null() || (*element.eid).len == 0 {
                         None
                     } else {
                         Some(

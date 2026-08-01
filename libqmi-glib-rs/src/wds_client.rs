@@ -1,20 +1,24 @@
 pub use libqmi_glib_types_rs::{WdsConnectionStatus, WdsIpFamily};
+#[cfg(feature = "v1_32")]
+pub use libqmi_glib_types_rs::{WdsPdpType, WdsRequestedSettings};
 
 use super::*;
 
 use crate::sys::*;
-use glib_sys::{GArray, GError, GFALSE, gboolean};
-use libqmi_glib_types_rs::glib::translate::{IntoGlib, from_glib};
+use glib_sys::{GError, GFALSE, gboolean};
+use libqmi_glib_types_rs::glib::translate::IntoGlib;
 
 use std::cell::RefCell;
 use std::ffi::CString;
-use std::ptr::{NonNull, null_mut};
+use std::ptr::NonNull;
 use std::rc::Rc;
 
 #[cfg(feature = "v1_32")]
 use {
-    libqmi_glib_types_rs::{WdsPdpType, WdsRequestedSettings},
+    glib_sys::GArray,
+    libqmi_glib_types_rs::glib::translate::from_glib,
     std::net::{Ipv4Addr, Ipv6Addr},
+    std::ptr::null_mut,
 };
 
 /// A client for interacting with the Wireless Data Service (WDS) of a QMI device.
@@ -59,7 +63,10 @@ release_client_callback!(release_client_cb, "release WDS client");
 type Context = WdsClient;
 
 getter!(
-    /// Asynchronously sends a Get Packet Service Status request to the device.
+    /// Retrieves the current packet data service status.
+    ///
+    /// The returned status indicates whether the packet data service is currently
+    /// connected, disconnected, suspended, or in another modem-defined state.
     get_packet_service_status,
     qmi_message_wds_get_packet_service_status_output_get_connection_status,
     WdsConnectionStatus,
@@ -70,41 +77,65 @@ getter!(
     "get_packet_service_status"
 );
 
-/// Current Ipv4 settings.
+/// Current IPv4 network configuration reported by the modem.
+///
+/// All fields are optional because the modem may omit individual settings,
+/// depending on the requested information and the active packet data session.
 #[cfg(feature = "v1_32")]
 #[cfg_attr(docsrs, doc(cfg(feature = "v1_32")))]
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub struct Ipv4NetworkSettings {
+    /// Assigned IPv4 address.
     pub address: Option<Ipv4Addr>,
+    /// Default IPv4 gateway.
     pub gateway: Option<Ipv4Addr>,
+    /// IPv4 subnet mask.
     pub netmask: Option<Ipv4Addr>,
+    /// Primary IPv4 DNS server.
     pub primary_dns: Option<Ipv4Addr>,
+    /// Secondary IPv4 DNS server.
     pub secondary_dns: Option<Ipv4Addr>,
 }
 
-/// Current Ipv6 settings.
+/// Current IPv6 network configuration reported by the modem.
+///
+/// All fields are optional because the modem may omit individual settings,
+/// depending on the requested information and the active packet data session.
 #[cfg(feature = "v1_32")]
 #[cfg_attr(docsrs, doc(cfg(feature = "v1_32")))]
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub struct Ipv6NetworkSettings {
+    /// Assigned IPv6 address.
     pub address: Option<Ipv6Addr>,
+    /// Prefix length of the assigned IPv6 address.
     pub prefix_length: Option<u8>,
+    /// Default IPv6 gateway.
     pub gateway: Option<Ipv6Addr>,
+    /// Prefix length of the IPv6 gateway.
     pub gateway_prefix_length: Option<u8>,
+    /// Primary IPv6 DNS server.
     pub primary_dns: Option<Ipv6Addr>,
+    /// Secondary IPv6 DNS server.
     pub secondary_dns: Option<Ipv6Addr>,
 }
 
-/// Current IP settings.
+/// Current network configuration reported by the modem.
+///
+/// The returned settings describe the active packet data session, including
+/// general session parameters and the IPv4 and IPv6 network configuration.
 #[cfg(feature = "v1_32")]
 #[cfg_attr(docsrs, doc(cfg(feature = "v1_32")))]
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub struct NetworkSettings {
+    /// Access Point Name (APN) used by the current packet data session.
     pub apn: Option<String>,
+    /// Maximum Transmission Unit (MTU) of the current packet data session.
     pub mtu: Option<u32>,
+    /// Packet Data Protocol (PDP) type of the current packet data session.
     pub pdp_type: Option<WdsPdpType>,
-
+    /// Current IPv4 network configuration.
     pub ipv4: Ipv4NetworkSettings,
+    /// Current IPv6 network configuration.
     pub ipv6: Ipv6NetworkSettings,
 }
 
@@ -260,7 +291,11 @@ where
 }
 
 request_with_writer_and_extractor!(
-    /// Asynchronously sends a Get Current ip Settings request to the device.
+    /// Retrieves the current network settings reported by the modem.
+    ///
+    /// The supplied flags specify which settings should be requested. The
+    /// returned value may include general session parameters together with
+    /// the current IPv4 and IPv6 configuration.
     #[cfg(feature = "v1_32")]
     #[cfg_attr(docsrs, doc(cfg(feature = "v1_32")))]
     get_current_ip_settings,
@@ -307,7 +342,13 @@ unsafe fn start_ipv4_network_extractor(
 }
 
 request_with_writer_and_extractor!(
-    // Asynchronously sends a Start Network request to the device.
+    /// Starts an IPv4 packet data session.
+    ///
+    /// The supplied Access Point Name (APN) identifies the packet data
+    /// network to connect to.
+    ///
+    /// On success, returns the packet data handle (PDH) identifying the
+    /// newly established session.
     start_ipv4_network,
     start_ipv4_network_writer,
     apn: impl AsRef<str>,
@@ -331,7 +372,8 @@ unsafe fn stop_ipv4_network_writer(
 }
 
 setter_with_writer!(
-    /// Stops the packet data session identified by the supplied handle.
+    /// Stops the IPv4 packet data session identified by the supplied
+    /// packet data handle (PDH).
     stop_ipv4_network,
     stop_ipv4_network_writer,
     pdh: u32,

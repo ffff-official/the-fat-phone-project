@@ -19,11 +19,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let result = client
         .with_voice(async move |mut client, _tk| {
             client
-                .set_all_call_status(Box::new(move |call_info_vec| {
-                    for item in call_info_vec.unwrap() {
-                        tracing::info!("mode = {:?}", item.info.mode);
-                    }
-                }))
+                .set_all_call_status(
+                    Box::new(move |call_info_vec| {
+                        for item in call_info_vec.unwrap() {
+                            tracing::info!("mode = {:?}", item.info.mode);
+                        }
+                    }),
+                    (),
+                )
                 .await
                 .unwrap();
             Ok::<(), ()>(())

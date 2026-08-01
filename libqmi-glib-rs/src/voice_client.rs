@@ -12,8 +12,6 @@ use super::*;
 
 use crate::sys::*;
 
-use futures::channel::oneshot;
-use gio_sys::GAsyncResult;
 use glib_sys::{GFALSE, gboolean};
 use gobject_sys::GObject;
 

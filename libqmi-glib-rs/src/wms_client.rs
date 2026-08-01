@@ -1,3 +1,8 @@
+mod event_report;
+pub use event_report::*;
+use glib_sys::GTRUE;
+use glib_sys::gboolean;
+
 use super::*;
 
 use crate::sys::*;
@@ -6,7 +11,7 @@ use gio_sys::GAsyncResult;
 use glib_sys::{
     GArray, GError, GFALSE, g_array_append_vals, g_array_sized_new, g_array_unref, guint16, guint32,
 };
-use gobject_sys::{GClosure, GObject};
+use gobject_sys::GObject;
 use libqmi_glib_types_rs::MessageWmsGetRoutesOutputRouteListElement;
 use libqmi_glib_types_rs::glib::translate::FromGlib;
 use libqmi_glib_types_rs::glib::translate::IntoGlib;
@@ -19,8 +24,6 @@ use std::ptr::{NonNull, null_mut};
 use std::rc::Rc;
 
 type Route = MessageWmsGetRoutesOutputRouteListElement;
-type QmiRoute = QmiMessageWmsGetRoutesOutputRouteListElement;
-type EventReportCallback = Box<dyn FnMut(QmiResult<(&[u8], WmsMessageFormat)>)>;
 
 /// A client for interacting with the Wireless Messaging Service (WMS) of a QMI device.
 ///
@@ -59,121 +62,11 @@ impl WmsClient {
 
     close_client_impl!("wms");
 
-    /// Asynchronously sends a Set Event Report request to the device.
-    /// The sender parameter is the communication channel through which newly received SMS PDUs are sent.
-    pub async fn set_event_report(&mut self, cb: EventReportCallback) -> QmiResult<()> {
-        unsafe {
-            let cb_ptr = Box::into_raw(Box::new(cb)).cast();
-            let handler_id = gobject_sys::g_signal_connect_data(
-                self.client.as_ptr().cast(),
-                c"event-report".as_ptr(),
-                Some(std::mem::transmute::<
-                    unsafe extern "C" fn(
-                        *mut gobject_sys::GObject,
-                        *mut libqmi_glib_sys::QmiIndicationWmsEventReportOutput,
-                        *mut std::ffi::c_void,
-                    ),
-                    unsafe extern "C" fn(),
-                >(event_report_cb)),
-                cb_ptr,
-                Some(destroy_event_report_data),
-                0,
-            );
-            if handler_id == 0 {
-                drop(Box::from_raw(cb_ptr.cast::<EventReportCallback>()));
-                Err(QmiError::new("handler id = 0", "set_event_report"))?;
-            } else {
-                tracing::debug!("Receiving evt report handler id = {}", handler_id);
-            }
-
-            let input = qmi_message_wms_set_event_report_input_new();
-
-            let mut error: *mut GError = null_mut();
-            let ret = qmi_message_wms_set_event_report_input_set_new_mt_message_indicator(
-                input, 1, &mut error,
-            );
-            if ret == 0 {
-                qmi_message_wms_set_event_report_input_unref(input);
-                gobject_sys::g_signal_handler_disconnect(self.client.as_ptr().cast(), handler_id);
-                Err((error, "set_event_report"))?;
-            }
-
-            let (tx, rx) = oneshot::channel::<QmiResult<()>>();
-
-            qmi_client_wms_set_event_report(
-                self.client.as_ptr(),
-                input,
-                OPERATION_TIMEOUT,
-                null_mut(),
-                Some(set_event_report_cb),
-                Box::into_raw(Box::new(tx)).cast(),
-            );
-            qmi_message_wms_set_event_report_input_unref(input);
-
-            let ret = rx.await.map_err(|_| QmiError::cb_droped())?;
-            tracing::debug!("WMS ready, waiting for messages...");
-            ret
-        }
-    }
-
-    /// Asynchronously sends a Get Routes request to the device.
-    pub async fn get_routes(&self) -> QmiResult<Vec<Route>> {
-        let (tx, rx) = oneshot::channel::<QmiResult<Vec<Route>>>();
-
-        unsafe {
-            qmi_client_wms_get_routes(
-                self.client.as_ptr(),
-                null_mut(),
-                OPERATION_TIMEOUT,
-                null_mut(),
-                Some(get_routes_cb),
-                Box::into_raw(Box::new(tx)).cast(),
-            )
-        }
-        rx.await.map_err(|_| QmiError::cb_droped())?
-    }
-
-    /// Asynchronously sends a Set Routes request to the device.
-    pub async fn set_routes(&mut self, routes: Vec<Route>) -> QmiResult<()> {
-        let (tx, rx) = oneshot::channel::<QmiResult<()>>();
-
-        let input: *mut QmiMessageWmsSetRoutesInput =
-            unsafe { qmi_message_wms_set_routes_input_new() };
-        let mut error: *mut GError = null_mut();
-
-        let routes = routes
-            .into_iter()
-            .map(|route| route.into())
-            .collect::<Vec<QmiMessageWmsGetRoutesOutputRouteListElement>>();
-
-        let value_route_list = unsafe { slice_to_garray(routes.as_slice()) };
-
-        let ret = unsafe {
-            qmi_message_wms_set_routes_input_set_route_list(input, value_route_list, &mut error)
-        };
-        if ret == 0 {
-            unsafe {
-                qmi_message_wms_set_routes_input_unref(input);
-                g_array_unref(value_route_list);
-            }
-            Err((error, "set routes"))?;
-        }
-
-        unsafe {
-            qmi_client_wms_set_routes(
-                self.client.as_ptr(),
-                input,
-                OPERATION_TIMEOUT,
-                null_mut(),
-                Some(set_routes_cb),
-                Box::into_raw(Box::new(tx)).cast(),
-            );
-            qmi_message_wms_set_routes_input_unref(input);
-            g_array_unref(value_route_list);
-        }
-        rx.await.map_err(|_| QmiError::cb_droped())?
-    }
-
+    // TODO : This is bullshit.
+    // This request does not fit request_with_writer_and_extractor! because
+    // GSM/UMTS RP and TP failure causes must be extracted from the output
+    // when get_result() fails.
+    //
     /// Sends SMS by the specified TPDU to the network operator's SMSC.
     pub async fn send_sms(&mut self, sms_tpdu: Vec<u8>) -> QmiResult<QmiResult<u64>> {
         let (tx, rx) = oneshot::channel::<QmiResult<u64>>();
@@ -238,130 +131,6 @@ allocate_client_callback!(allocate_client_cb, QmiClientWms, "allocate WMS client
 
 release_client_callback!(release_client_cb, "release WMS client");
 
-unsafe extern "C" fn event_report_cb(
-    _client: *mut GObject,
-    output: *mut QmiIndicationWmsEventReportOutput,
-    user_data: *mut c_void,
-) {
-    tracing::debug!("WMS event-report received");
-
-    let mut error: *mut GError = null_mut();
-
-    let mut _value_transfer_route_mt_message_ack_indicator = 0;
-    let mut _value_transfer_route_mt_message_transaction_id: guint32 = 0;
-    let mut value_transfer_route_mt_message_format = 0;
-    let mut value_transfer_route_mt_message_raw_data: *mut GArray = null_mut();
-
-    let ret = qmi_indication_wms_event_report_output_get_transfer_route_mt_message(
-        output,
-        &mut _value_transfer_route_mt_message_ack_indicator,
-        &mut _value_transfer_route_mt_message_transaction_id,
-        &mut value_transfer_route_mt_message_format,
-        &mut value_transfer_route_mt_message_raw_data,
-        &mut error,
-    );
-    let cb = &mut *(user_data.cast::<EventReportCallback>());
-    if ret == GFALSE {
-        cb(Err(Into::<QmiError>::into((error, "message event TPDU"))));
-    } else {
-        let data = {
-            let ptr = (*value_transfer_route_mt_message_raw_data).data.cast();
-            let len = (*value_transfer_route_mt_message_raw_data).len as usize;
-            std::slice::from_raw_parts(ptr, len)
-        };
-        let message_format = WmsMessageFormat::from_glib(value_transfer_route_mt_message_format);
-        cb(Ok((data, message_format)));
-    }
-}
-
-// Lauched when no more instances of GObject references QmiClientWms exists
-unsafe extern "C" fn destroy_event_report_data(data: *mut c_void, _closure: *mut GClosure) {
-    tracing::debug!("destroy_event_report_data");
-    drop(Box::from_raw(data.cast::<EventReportCallback>()));
-}
-
-unsafe extern "C" fn set_event_report_cb(
-    client: *mut GObject,
-    res: *mut GAsyncResult,
-    user_data: *mut c_void,
-) {
-    let sender = Box::from_raw(user_data.cast::<oneshot::Sender<QmiResult<()>>>());
-    let mut error: *mut GError = null_mut();
-
-    let output = qmi_client_wms_set_event_report_finish(client.cast(), res, &mut error);
-    if output.is_null() {
-        let _drop = sender
-            .send(Err((error, "wms event report").into()))
-            .inspect_err(cannot_send);
-        return;
-    }
-
-    let ret = qmi_message_wms_set_event_report_output_get_result(output, &mut error);
-    qmi_message_wms_set_event_report_output_unref(output);
-
-    let output: Result<(), _> = match ret {
-        GFALSE => Err((error, "wms event report").into()),
-        _ => Ok(()),
-    };
-    drop(sender.send(output).inspect_err(cannot_send));
-}
-
-unsafe extern "C" fn get_routes_cb(
-    client: *mut GObject,
-    res: *mut GAsyncResult,
-    user_data: *mut c_void,
-) {
-    let sender = Box::from_raw(user_data.cast::<oneshot::Sender<QmiResult<Vec<Route>>>>());
-    let mut error: *mut GError = null_mut();
-
-    let get_routes_output: *mut QmiMessageWmsGetRoutesOutput =
-        qmi_client_wms_get_routes_finish(client.cast(), res, &mut error);
-    if get_routes_output.is_null() {
-        let _drop = sender
-            .send(Err((error, "get routes").into()))
-            .inspect_err(cannot_send);
-        return;
-    }
-
-    let mut value_route_list: *mut GArray = null_mut();
-    let ret = qmi_message_wms_get_routes_output_get_route_list(
-        get_routes_output,
-        &mut value_route_list,
-        &mut error,
-    );
-    let output = match ret {
-        GFALSE => Err((error, "wms event report").into()),
-        _ => Ok(std::slice::from_raw_parts(
-            (*value_route_list).data.cast::<QmiRoute>(),
-            (*value_route_list).len as usize,
-        )
-        .iter()
-        .map(|route| (*route).into())
-        .collect::<Vec<Route>>()),
-    };
-    qmi_message_wms_get_routes_output_unref(get_routes_output);
-    drop(sender.send(output).inspect_err(cannot_send));
-}
-
-unsafe extern "C" fn set_routes_cb(
-    client: *mut GObject,
-    res: *mut GAsyncResult,
-    user_data: *mut c_void,
-) {
-    let sender = Box::from_raw(user_data.cast::<oneshot::Sender<QmiResult<()>>>());
-
-    let mut error: *mut GError = null_mut();
-
-    let ret = qmi_client_wms_set_routes_finish(client.cast(), res, &mut error);
-
-    let output = match ret.is_null() {
-        true => Err((error, "set routes").into()),
-        _ => Ok(()),
-    };
-    qmi_message_wms_set_routes_output_unref(ret);
-    drop(sender.send(output).inspect_err(cannot_send));
-}
-
 unsafe extern "C" fn send_sms_cb(
     client: *mut GObject,
     res: *mut GAsyncResult,
@@ -412,3 +181,82 @@ unsafe extern "C" fn send_sms_cb(
     };
     drop(sender.send(output).inspect_err(cannot_send));
 }
+
+type Context = WmsClient;
+
+unsafe fn set_routes_writer(
+    input: *mut QmiMessageWmsSetRoutesInput,
+    error: *mut *mut GError,
+    routes: Vec<Route>,
+) -> gboolean {
+    let routes = routes
+        .into_iter()
+        .map(|route| route.into())
+        .collect::<Vec<QmiMessageWmsGetRoutesOutputRouteListElement>>();
+
+    let value_route_list = unsafe { slice_to_garray(routes.as_slice()) };
+
+    let ret = qmi_message_wms_set_routes_input_set_route_list(input, value_route_list, error);
+    g_array_unref(value_route_list);
+    ret
+}
+
+setter_with_writer!(
+    /// Configures the WMS message routing rules used by the modem.
+    ///
+    /// Each route specifies how a particular message type and class should be
+    /// handled, including the destination storage and receipt action.
+    ///
+    /// Replacing the routing configuration affects how subsequent incoming
+    /// messages are delivered by the modem.
+    set_routes,
+    set_routes_writer,
+    routes: Vec<Route>,
+    qmi_message_wms_set_routes_input_new,
+    qmi_message_wms_set_routes_input_unref,
+    qmi_client_wms_set_routes,
+    qmi_client_wms_set_routes_finish,
+    qmi_message_wms_set_routes_output_get_result,
+    qmi_message_wms_set_routes_output_unref,
+    "set_routes"
+);
+
+unsafe fn get_routes_extractor(
+    output: *mut QmiMessageWmsGetRoutesOutput,
+    error: *mut *mut GError,
+    param: &mut Vec<Route>,
+) -> gboolean {
+    let mut value_route_list: *mut GArray = null_mut();
+    let ret =
+        qmi_message_wms_get_routes_output_get_route_list(output, &mut value_route_list, error);
+    if ret == GTRUE && !value_route_list.is_null() && (*value_route_list).len > 0 {
+        *param = std::slice::from_raw_parts(
+            (*value_route_list)
+                .data
+                .cast::<QmiMessageWmsGetRoutesOutputRouteListElement>(),
+            (*value_route_list).len as usize,
+        )
+        .iter()
+        .copied()
+        .map(Route::from)
+        .collect::<Vec<Route>>();
+    }
+    ret
+}
+
+getter_with_extractor!(
+    /// Extracts the configured WMS message routes from a Get Routes response.
+    ///
+    /// The route list is owned by the QMI output message. Each element is therefore
+    /// copied into an owned Rust [`Route`] before the output message is released.
+    ///
+    /// An empty route list produces an empty vector.
+    get_routes,
+    get_routes_extractor,
+    Vec<Route>,
+    qmi_client_wms_get_routes,
+    qmi_client_wms_get_routes_finish,
+    qmi_message_wms_get_routes_output_get_result,
+    qmi_message_wms_get_routes_output_unref,
+    "get_routes"
+);

@@ -52,7 +52,10 @@ pub(crate) mod __macro_support {
     pub use futures::channel::oneshot;
     pub use gio_sys::GAsyncResult;
     pub use glib_sys::GFALSE;
-    pub use gobject_sys::{GObject, g_object_ref, g_object_unref};
+    pub use gobject_sys::{
+        GClosure, GObject, g_object_ref, g_object_unref, g_signal_connect_data,
+        g_signal_handler_disconnect,
+    };
     pub use libqmi_glib_types_rs::DeviceReleaseClientFlags;
     pub use libqmi_glib_types_rs::glib::translate::{IntoGlib, from_glib};
 
@@ -609,6 +612,169 @@ macro_rules! request_with_writer_and_extractor {
 
                 unsafe { $message_input_unref(input) };
                 rx.await.map_err(|_| QmiError::cb_droped())?
+            }
+        }
+    }
+}
+
+/// Generates an asynchronous event registration method for a QMI indication.
+///
+/// The generated method performs the following steps:
+/// - Connects a GLib signal handler to the underlying QMI client.
+/// - Configures the indication by sending the corresponding QMI request.
+/// - Keeps the user callback alive until the signal handler is disconnected or the underlying GObject is destroyed.
+///
+/// Unlike request-oriented macros such as getter! or setter_with_writer!,
+/// this macro does not generate the indication callback itself. The callback
+/// responsible for decoding the indication payload and invoking the user
+/// callback must be provided separately.
+///
+/// # Parameters
+///
+/// - $method_name — Name of the generated method.
+/// - $callback_type — Type of the user callback.
+/// - $parameter_name + $parameter_type — Given for initialization.
+/// - $signal_name — GLib signal associated with the indication (for example c"event-report").
+/// - $callback_input — QMI indication output type received by the signal.
+/// - $callback_function — User-defined indication callback.
+/// - $writer — Function configuring the indication input message.
+/// - $message_input_new — Allocates the QMI input message.
+/// - $message_input_unref — Releases the QMI input message.
+/// - $validation_start — Starts the asynchronous QMI request.
+/// - $validation_finish — Finishes the asynchronous QMI request.
+/// - $message_output_get_result — Validates the QMI response.
+/// - $message_output_unref — Releases the QMI output message.
+/// - $context — Context string used in generated error messages.
+///
+/// # Generated method
+///
+/// The generated method returns QmiResult<()>. Once it completes
+/// successfully, the indication remains registered until the signal handler is
+/// disconnected or the underlying GObject is destroyed.
+macro_rules! event {
+    (
+        $(#[$meta:meta])*
+        $method_name:ident,
+        $callback_type:ty,
+        $parameter_name:ident: $parameter_type:ty,
+        $signal_name:expr,
+        $callback_input:ty,
+        $callback_function:path,
+        $writer:path,
+        $message_input_new:ident,
+        $message_input_unref:ident,
+        $validation_start:ident,
+        $validation_finish:ident,
+        $message_output_get_result:ident,
+        $message_output_unref:ident,
+        $context:literal
+    ) => {
+        impl Context {
+            $(#[$meta])*
+            pub async fn $method_name(&mut self, cb: $callback_type, $parameter_name: $parameter_type) -> QmiResult<()> {
+                unsafe extern "C" fn callback(
+                    client: *mut $crate::__macro_support::GObject,
+                    res: *mut $crate::__macro_support::GAsyncResult,
+                    user_data: *mut $crate::__macro_support::c_void,
+                ) {
+                    let sender = Box::from_raw(user_data.cast::<$crate::__macro_support::oneshot::Sender<QmiResult<()>>>());
+                    let mut error: *mut GError = $crate::__macro_support::null_mut();
+
+                    let output = $validation_finish(client.cast(), res, &mut error);
+                    if output.is_null() {
+                        let _drop = sender
+                            .send(Err((error, concat!($context, " finish")).into()))
+                            .inspect_err(cannot_send);
+                        return;
+                    }
+
+                    let ret = $message_output_get_result(output, &mut error);
+                    let result: Result<(), _> = match ret {
+                        GFALSE => Err((error, concat!($context, " get result")).into()),
+                        _ => Ok(()),
+                    };
+                    $message_output_unref(output);
+                    drop(sender.send(result).inspect_err(cannot_send));
+                }
+                // Called when the signal handler is disconnected or when the underlying GObject is destroyed.
+                unsafe extern "C" fn destroyer(
+                    data: *mut $crate::__macro_support::c_void,
+                    _closure: *mut $crate::__macro_support::GClosure
+                ) {
+                    tracing::debug!(concat!("destroy : ", $context));
+                    drop(Box::from_raw(data.cast::<$callback_type>()));
+                }
+                unsafe {
+                    let cb_ptr = Box::into_raw(Box::new(cb)).cast();
+                    let handler_id = $crate::__macro_support::g_signal_connect_data(
+                        self.client.as_ptr().cast(),
+                        $signal_name.as_ptr(),
+                        Some(std::mem::transmute::<
+                            unsafe extern "C" fn(
+                                *mut $crate::__macro_support::GObject,
+                                *mut $callback_input,
+                                *mut $crate::__macro_support::c_void,
+                            ),
+                            unsafe extern "C" fn(),
+                        >($callback_function)),
+                        cb_ptr,
+                        Some(destroyer),
+                        0,
+                    );
+                    if handler_id == 0 {
+                        drop(Box::from_raw(cb_ptr.cast::<$callback_type>()));
+                        Err(QmiError::new("handler id = 0", $context))?;
+                    } else {
+                        tracing::debug!(concat!($context, " handler id = {}"), handler_id);
+                    }
+
+                    let input = $message_input_new();
+                    if input.is_null() {
+                        $crate::__macro_support::g_signal_handler_disconnect(self.client.as_ptr().cast(), handler_id);
+                        return Err(QmiError::new("Null input pointer", $context));
+                    }
+
+                    let mut error: *mut GError = $crate::__macro_support::null_mut();
+
+                    let ret = $writer(input, &mut error, $parameter_name);
+                    if ret == $crate::__macro_support::GFALSE {
+                        $message_input_unref(input);
+                        $crate::__macro_support::g_signal_handler_disconnect(
+                            self.client.as_ptr().cast(),
+                            handler_id,
+                        );
+                        Err((error, $context))?;
+                    }
+
+                    let (tx, rx) = $crate::__macro_support::oneshot::channel::<QmiResult<()>>();
+
+                    $validation_start(
+                        self.client.as_ptr(),
+                        input,
+                        OPERATION_TIMEOUT,
+                        $crate::__macro_support::null_mut(),
+                        Some(callback),
+                        Box::into_raw(Box::new(tx)).cast(),
+                    );
+                    $message_input_unref(input);
+
+                    let result = match rx.await {
+                        Ok(result) => result,
+                        Err(_) => {
+                            $crate::__macro_support::g_signal_handler_disconnect(self.client.as_ptr().cast(), handler_id);
+                            return Err(QmiError::cb_droped());
+                        }
+                    };
+
+                    if result.is_err() {
+                        $crate::__macro_support::g_signal_handler_disconnect(self.client.as_ptr().cast(), handler_id);
+                    } else {
+                        tracing::debug!(
+                            concat!($context, " waiting for messages...")
+                        );
+                    }
+                    result
+                }
             }
         }
     }

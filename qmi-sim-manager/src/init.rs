@@ -61,20 +61,26 @@ pub(crate) fn init_thread(
                 .await?;
                 let mut sm_event_sender_clone = sm_event_sender.clone();
                 voice_client
-                    .set_all_call_status(Box::new(move |call_info_vec| {
-                        let ret = sm_event_sender_clone.start_send(match call_info_vec {
-                            Ok(call_info_vec) => Event::VoiceCallEvent(call_info_vec),
-                            Err(e) => Event::InternalError(Error::Qmi(e)),
-                        });
-                        if let Err(e) = ret {
-                            tracing::error!("set_all_call_status sender : cannot send : {:?}", e);
-                        }
-                    }))
+                    .set_all_call_status(
+                        Box::new(move |call_info_vec| {
+                            let ret = sm_event_sender_clone.start_send(match call_info_vec {
+                                Ok(call_info_vec) => Event::VoiceCallEvent(call_info_vec),
+                                Err(e) => Event::InternalError(Error::Qmi(e)),
+                            });
+                            if let Err(e) = ret {
+                                tracing::error!(
+                                    "set_all_call_status sender : cannot send : {:?}",
+                                    e
+                                );
+                            }
+                        }),
+                        (),
+                    )
                     .await?;
                 let mut sm_event_sender_clone = sm_event_sender.clone();
+                let radio_interfaces = dms_client.get_capabilities().await?.radio_interfaces;
                 nas_client
                     .set_event_report(
-                        &dms_client,
                         Box::new(
                             move |infos_res: Result<NasEventReport, libqmi_glib_rs::QmiError>| {
                                 let ret = sm_event_sender_clone.start_send(match infos_res {
@@ -89,6 +95,7 @@ pub(crate) fn init_thread(
                                 }
                             },
                         ),
+                        radio_interfaces,
                     )
                     .await?;
                 let mut sm_event_sender_clone = sm_event_sender.clone();

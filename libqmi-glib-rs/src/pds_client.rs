@@ -12,11 +12,14 @@ use crate::sys::*;
 
 use glib_sys::{GFALSE, GTRUE, gboolean};
 use libqmi_glib_types_rs::Service;
-use libqmi_glib_types_rs::glib::translate::{IntoGlib, from_glib};
+use libqmi_glib_types_rs::glib::translate::from_glib;
 
 use std::cell::RefCell;
 use std::ptr::NonNull;
 use std::rc::Rc;
+
+#[cfg(feature = "v1_12")]
+use libqmi_glib_types_rs::glib::translate::IntoGlib;
 
 /// A client for interacting with the Position Determination Service (PDS) of a QMI device.
 #[derive(Debug)]

@@ -620,7 +620,7 @@ unsafe fn get_supported_messages_extractor(
     let mut value_list: *mut GArray = null_mut();
     let ret =
         qmi_message_dms_get_supported_messages_output_get_list(output, &mut value_list, error);
-    if ret == GTRUE && !value_list.is_null() {
+    if ret == GTRUE && !value_list.is_null() && (*value_list).len > 0 {
         let slice =
             std::slice::from_raw_parts((*value_list).data.cast::<u8>(), (*value_list).len as usize);
         *param = slice.to_vec();

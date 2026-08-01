@@ -818,7 +818,7 @@ impl Client {
     ///     })
     ///     .await??;
     ///
-    /// for card in card_statuses {
+    /// for card in card_statuses.cards {
     ///     println!("{card:#?}");
     /// }
     ///
