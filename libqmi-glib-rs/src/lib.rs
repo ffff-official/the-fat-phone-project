@@ -234,6 +234,14 @@ macro_rules! release_client_callback {
     };
 }
 
+/// Generates an asynchronous getter for a single output value.
+///
+/// The generated method performs the QMI request, validates its response,
+/// and uses the supplied getter function to retrieve the requested value
+/// directly from the QMI output message.
+///
+/// Use `getter_with_extractor!` when retrieving or converting the returned
+/// value requires custom logic.
 macro_rules! getter {
     (
         $(#[$meta:meta])*
@@ -308,84 +316,14 @@ macro_rules! getter {
     };
 }
 
-macro_rules! setter {
-    (
-        $(#[$meta:meta])*
-        $method_name:ident,
-        $qmi_function:path,
-        $parameter_type:ty,
-        $message_input_new:ident,
-        $message_input_unref:ident,
-        $validation_start:ident,
-        $validation_finish:ident,
-        $message_output_get_result:ident,
-        $message_output_unref:ident,
-        $context:literal
-    ) => {
-        impl Context {
-            $(#[$meta])*
-            pub async fn $method_name(&mut self, parameter: $parameter_type) -> QmiResult<()> {
-                unsafe extern "C" fn callback(
-                    client: *mut $crate::__macro_support::GObject,
-                    res: *mut $crate::__macro_support::GAsyncResult,
-                    user_data: *mut $crate::__macro_support::c_void,
-                ) {
-                    let sender = Box::from_raw(user_data.cast::<$crate::__macro_support::oneshot::Sender<QmiResult<()>>>());
-
-                    let mut error: *mut GError = $crate::__macro_support::null_mut();
-
-                    let output_ptr = $validation_finish(client.cast(), res, &mut error);
-
-                    if output_ptr.is_null() {
-                        let _r = sender
-                            .send(Err((error, concat!($context, " cb finish")).into()))
-                            .inspect_err(cannot_send);
-                        return;
-                    }
-
-                    let ret = $message_output_get_result(output_ptr, &mut error);
-                    let output = match ret {
-                        $crate::__macro_support::GFALSE => Err((error, concat!($context, " cb get_result")).into()),
-                        _ => Ok(()),
-                    };
-                    $message_output_unref(output_ptr);
-                    let _r = sender.send(output).inspect_err(cannot_send);
-                }
-                let input = unsafe { $message_input_new() };
-
-                if input.is_null() {
-                    Err(QmiError::new("Null pointer", $context))?;
-                }
-
-                let mut error: *mut GError = $crate::__macro_support::null_mut();
-
-                use $crate::__macro_support::IntoGlib;
-                let ret = unsafe { $qmi_function(input, parameter.into_glib(), &mut error) };
-                if ret == $crate::__macro_support::GFALSE {
-                    unsafe { $message_input_unref(input) };
-                    Err((error, concat!($context, " assign")))?;
-                }
-
-                let (tx, rx) = $crate::__macro_support::oneshot::channel::<QmiResult<()>>();
-
-                unsafe {
-                    $validation_start(
-                        self.client.as_ptr(),
-                        input,
-                        OPERATION_TIMEOUT,
-                        $crate::__macro_support::null_mut(),
-                        Some(callback),
-                        Box::into_raw(Box::new(tx)).cast(),
-                    )
-                };
-
-                unsafe { $message_input_unref(input) };
-                rx.await.map_err(|_| QmiError::cb_droped())?
-            }
-        }
-    }
-}
-
+/// Generates an asynchronous getter using a custom output extractor.
+///
+/// The generated method performs the QMI request and validates its response.
+/// On success, the supplied extractor is invoked to retrieve and convert the
+/// requested value from the QMI output message.
+///
+/// Use this macro when the returned value requires custom extraction logic,
+/// such as converting multiple fields, arrays, or complex QMI types.
 macro_rules! getter_with_extractor {
     (
         $(#[$meta:meta])*
@@ -458,11 +396,19 @@ macro_rules! getter_with_extractor {
     };
 }
 
-macro_rules! setter_with_writer {
+/// Generates an asynchronous setter for a single input value.
+///
+/// The supplied setter function is used to write the method parameter directly
+/// into the QMI input message. The generated method performs the request,
+/// validates the QMI response, and returns `QmiResult<()>` on completion.
+///
+/// Use `setter_with_writer!` when populating the input message requires custom
+/// logic or multiple values.
+macro_rules! setter {
     (
         $(#[$meta:meta])*
         $method_name:ident,
-        $writer:path,
+        $qmi_function:path,
         $parameter_type:ty,
         $message_input_new:ident,
         $message_input_unref:ident,
@@ -474,7 +420,7 @@ macro_rules! setter_with_writer {
     ) => {
         impl Context {
             $(#[$meta])*
-            pub async fn $method_name(&mut self, parameter: $parameter_type) -> QmiResult<()> {
+            pub async fn $method_name(&self, parameter: $parameter_type) -> QmiResult<()> {
                 unsafe extern "C" fn callback(
                     client: *mut $crate::__macro_support::GObject,
                     res: *mut $crate::__macro_support::GAsyncResult,
@@ -508,13 +454,147 @@ macro_rules! setter_with_writer {
                 }
 
                 let mut error: *mut GError = $crate::__macro_support::null_mut();
-                let ret = unsafe { $writer(input, &mut error, parameter) };
+
+                use $crate::__macro_support::IntoGlib;
+                let ret = unsafe { $qmi_function(input, parameter.into_glib(), &mut error) };
                 if ret == $crate::__macro_support::GFALSE {
                     unsafe { $message_input_unref(input) };
                     Err((error, concat!($context, " assign")))?;
                 }
 
                 let (tx, rx) = $crate::__macro_support::oneshot::channel::<QmiResult<()>>();
+
+                unsafe {
+                    $validation_start(
+                        self.client.as_ptr(),
+                        input,
+                        OPERATION_TIMEOUT,
+                        $crate::__macro_support::null_mut(),
+                        Some(callback),
+                        Box::into_raw(Box::new(tx)).cast(),
+                    )
+                };
+
+                unsafe { $message_input_unref(input) };
+                rx.await.map_err(|_| QmiError::cb_droped())?
+            }
+        }
+    }
+}
+
+#[allow(unused)]
+unsafe fn dummy_result<T>(_output: *mut T, _error: *mut *mut GError) -> Result<(), ()> {
+    Ok(())
+}
+
+/// Generates an asynchronous setter using a custom input writer.
+///
+/// The supplied writer is responsible for populating the QMI input message
+/// from the method parameter. The generated method performs the request,
+/// validates the QMI response, and returns `QmiResult<()>` on completion.
+///
+/// This macro is a simplified wrapper around `setter_with_writer_extended!`,
+/// using `()` as the return type and no additional output extraction.
+macro_rules! setter_with_writer {
+    (
+        $(#[$meta:meta])*
+        $method_name:ident,
+        $writer:path,
+        $parameter_type:ty,
+        $message_input_new:ident,
+        $message_input_unref:ident,
+        $validation_start:ident,
+        $validation_finish:ident,
+        $message_output_get_result:ident,
+        $message_output_unref:ident,
+        $context:literal
+    ) => {
+        setter_with_writer_extended!(
+            $(#[$meta])*
+            $method_name,
+            $writer,
+            $parameter_type,
+            $message_input_new,
+            $message_input_unref,
+            $validation_start,
+            $validation_finish,
+            $message_output_get_result,
+            $message_output_unref,
+            (),
+            crate::dummy_result,
+            $context
+        );
+    }
+}
+
+/// Extended variant of `setter_with_writer!`.
+///
+/// In addition to writing the input parameters, this macro accepts a return
+/// type and invokes a final extraction function on the successful QMI output
+/// to produce the value returned by the generated method.
+macro_rules! setter_with_writer_extended {
+    (
+        $(#[$meta:meta])*
+        $method_name:ident,
+        $writer:path,
+        $parameter_type:ty,
+        $message_input_new:ident,
+        $message_input_unref:ident,
+        $validation_start:ident,
+        $validation_finish:ident,
+        $message_output_get_result:ident,
+        $message_output_unref:ident,
+        $return_type:ty,
+        $return_function:path,
+        $context:literal
+    ) => {
+        impl Context {
+            $(#[$meta])*
+            pub async fn $method_name(&self, parameter: $parameter_type) -> QmiResult<$return_type> {
+                unsafe extern "C" fn callback(
+                    client: *mut $crate::__macro_support::GObject,
+                    res: *mut $crate::__macro_support::GAsyncResult,
+                    user_data: *mut $crate::__macro_support::c_void,
+                ) {
+                    let sender = Box::from_raw(user_data.cast::<$crate::__macro_support::oneshot::Sender<QmiResult<$return_type>>>());
+
+                    let mut error: *mut GError = $crate::__macro_support::null_mut();
+
+                    let output_ptr = $validation_finish(client.cast(), res, &mut error);
+
+                    if output_ptr.is_null() {
+                        let _r = sender
+                            .send(Err((error, concat!($context, " cb finish")).into()))
+                            .inspect_err(cannot_send);
+                        return;
+                    }
+
+                    let ret = $message_output_get_result(output_ptr, &mut error);
+                    let output = match ret {
+                        $crate::__macro_support::GFALSE => Err((error, concat!($context, " cb get_result")).into()),
+                        _ => {
+                            let mut error: *mut GError = $crate::__macro_support::null_mut();
+                            $return_function(output_ptr, &mut error)
+                                .map_err(|_| (error, concat!($context, " cb return function")).into())
+                        }
+                    };
+                    $message_output_unref(output_ptr);
+                    let _r = sender.send(output).inspect_err(cannot_send);
+                }
+                let input = unsafe { $message_input_new() };
+
+                if input.is_null() {
+                    Err(QmiError::new("Null pointer", $context))?;
+                }
+
+                let mut error: *mut GError = $crate::__macro_support::null_mut();
+                let ret = unsafe { $writer(input, &mut error, parameter) };
+                if ret == $crate::__macro_support::GFALSE {
+                    unsafe { $message_input_unref(input) };
+                    Err((error, concat!($context, " assign")))?;
+                }
+
+                let (tx, rx) = $crate::__macro_support::oneshot::channel::<QmiResult<$return_type>>();
 
                 unsafe {
                     $validation_start(

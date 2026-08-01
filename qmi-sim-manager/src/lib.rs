@@ -79,7 +79,7 @@ pub mod mms {
 }
 /// Types related to VOICE calls.
 pub mod voice {
-    pub use libqmi_glib_rs::voice_client::VoiceCall;
+    pub use libqmi_glib_rs::voice_client::*;
 }
 /// Types related to UIM module.
 pub mod uim {

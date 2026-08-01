@@ -1,7 +1,7 @@
 use tests::*;
 
 use futures::stream::StreamExt;
-use qmi_sim_manager::ClientHandle;
+use qmi_sim_manager::{ClientHandle, voice::VoiceBurstDtmfInput};
 
 use std::time::Duration;
 
@@ -30,7 +30,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tokio::time::sleep(Duration::from_secs(30)).await;
 
     if let Err(e) = client
-        .with_voice(async move |client, _tk| client.dtmf_tones_request(call_id, "345").await)
+        .with_voice(async move |client, _tk| {
+            client
+                .dtmf_tones_request(VoiceBurstDtmfInput {
+                    call_id,
+                    digits: "1234".to_string(),
+                })
+                .await
+        })
         .await?
     {
         tracing::error!("Cannot send dtmf : {:?}", e);

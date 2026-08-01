@@ -623,7 +623,7 @@ unsafe fn get_supported_messages_extractor(
     if ret == GTRUE && !value_list.is_null() {
         let slice =
             std::slice::from_raw_parts((*value_list).data.cast::<u8>(), (*value_list).len as usize);
-        *param = slice.iter().cloned().collect();
+        *param = slice.to_vec();
     }
     ret
 }

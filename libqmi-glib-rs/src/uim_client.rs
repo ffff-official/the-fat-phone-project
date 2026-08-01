@@ -77,10 +77,14 @@ impl UimClient {
 
     close_client_impl!("uim");
 
-    /// TODO: Bad pattern, this is bullshit.
-    /// Remaining retries are available on failure with
-    /// qmi_message_uim_verify_pin_output_get_retries_remaining().
+    /// TODO: This is bullshit.
+    /// This request does not fit the generic setter pattern because
+    /// retries_remaining must be extracted from the output when get_result() fails.
+    /// Keep this implementation explicit until the request abstraction supports
+    /// error-output extraction.
     ///
+    /// Remaining retries are available on failure with
+    /// Must USE : qmi_message_uim_verify_pin_output_get_retries_remaining().
     ///
     /// Verifies the PIN1 code of the selected UIM application.
     ///
