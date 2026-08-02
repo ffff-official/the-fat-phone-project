@@ -161,7 +161,7 @@ impl NasClient {
     ///
     /// Returns an error if the signal information reporting configuration cannot
     /// be applied to the modem.
-    pub async fn set_signal_info(
+    pub async fn signal_signal_info(
         &mut self,
         cb: SignalInfoCallback,
         dms_radio_interfaces: &[DmsRadioInterface],
@@ -185,7 +185,7 @@ impl NasClient {
             );
             if handler_id == 0 {
                 drop(Box::from_raw(cb_ptr.cast::<SignalInfoCallback>()));
-                Err(QmiError::new("handler id = 0", "set_signal_info"))?;
+                Err(QmiError::new("handler id = 0", "signal_signal_info"))?;
             } else {
                 tracing::debug!("Receiving signal info handler id = {}", handler_id);
             }
@@ -215,7 +215,7 @@ impl NasClient {
             qmi_message_nas_register_indications_input_unref(input);
 
             rx.await
-                .map_err(|_| QmiError::cb_droped("set_signal_info"))??;
+                .map_err(|_| QmiError::cb_droped("signal_signal_info"))??;
 
             let radio_interfaces = dms_radio_interfaces;
             let mut accepted = Vec::new();
@@ -238,7 +238,7 @@ impl NasClient {
 
                         let ret = rx
                             .await
-                            .map_err(|_| QmiError::cb_droped("set_signal_info"))?
+                            .map_err(|_| QmiError::cb_droped("signal_signal_info"))?
                             .is_ok();
                         if ret {
                             tracing::debug!(
@@ -287,7 +287,7 @@ impl NasClient {
             qmi_message_nas_config_signal_info_v2_input_unref(input);
 
             rx.await
-                .map_err(|_| QmiError::cb_droped("set_signal_info"))?
+                .map_err(|_| QmiError::cb_droped("signal_signal_info"))?
         }
     }
 

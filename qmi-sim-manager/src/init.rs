@@ -50,7 +50,7 @@ pub(crate) fn init_thread(
                 .await?;
                 let mut sm_event_sender_clone = sm_event_sender.clone();
                 voice_client
-                    .set_all_call_status(
+                    .signal_all_call_status(
                         Box::new(move |call_info_vec| {
                             let ret = sm_event_sender_clone.start_send(match call_info_vec {
                                 Ok(call_info_vec) => Event::VoiceCallEvent(call_info_vec),
@@ -63,14 +63,14 @@ pub(crate) fn init_thread(
                                 );
                             }
                         }),
-                        (),
+                        true,
                     )
                     .await?;
                 let mut sm_event_sender_clone = sm_event_sender.clone();
                 let radio_interfaces = dms_client.get_capabilities().await?.radio_interfaces;
                 let radio_interfaces_clone = radio_interfaces.clone();
                 nas_client
-                    .set_event_report(
+                    .signal_event_report(
                         Box::new(
                             move |infos_res: Result<NasEventReport, libqmi_glib_rs::QmiError>| {
                                 let ret = sm_event_sender_clone.start_send(match infos_res {
@@ -90,7 +90,7 @@ pub(crate) fn init_thread(
                     .await?;
                 let mut sm_event_sender_clone = sm_event_sender.clone();
                 nas_client
-                    .set_signal_info(
+                    .signal_signal_info(
                         Box::new(
                             move |infos_res: Result<SignalInfo, libqmi_glib_rs::QmiError>| {
                                 let ret = sm_event_sender_clone.start_send(match infos_res {

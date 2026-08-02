@@ -57,7 +57,7 @@ unsafe fn set_event_report_writer(
 
 type Context = NasClient;
 
-event!(
+signal!(
     /// Configures and enables NAS event report indications.
     ///
     /// The callback is invoked whenever the modem emits a NAS event report with
@@ -70,7 +70,7 @@ event!(
     ///
     /// Returns an error if the event report configuration cannot be applied to the
     /// modem.
-    set_event_report,
+    signal_event_report,
     EventReportCallback,
     dms_radio_interfaces: &[DmsRadioInterface],
     c"event-report",
@@ -83,7 +83,7 @@ event!(
     qmi_client_nas_set_event_report_finish,
     qmi_message_nas_set_event_report_output_get_result,
     qmi_message_nas_set_event_report_output_unref,
-    "set_event_report"
+    "signal_event_report"
 );
 
 unsafe extern "C" fn event_report_cb(

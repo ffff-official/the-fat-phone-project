@@ -69,7 +69,7 @@ pub(crate) async fn start_messaging(
     let (mut tpdu_sender, tpdu_receiver) = futures::channel::mpsc::unbounded();
     let mut sm_event_sender_clone = sm_event_sender.clone();
     wms_client
-        .set_event_report(
+        .signal_event_report(
             Box::new(move |result| {
                 let ret = match result {
                     Ok((tpdu, format)) => tpdu_sender.start_send((tpdu.to_vec(), format)),
@@ -79,7 +79,7 @@ pub(crate) async fn start_messaging(
                     tracing::warn!("set_event_report sender : cannot send : {:?}", e);
                 }
             }),
-            (),
+            true,
         )
         .await?;
     let mut routes = wms_client.get_routes().await?;

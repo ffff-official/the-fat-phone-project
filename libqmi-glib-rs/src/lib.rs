@@ -653,7 +653,7 @@ macro_rules! request_with_writer_and_extractor {
 /// The generated method returns QmiResult<()>. Once it completes
 /// successfully, the indication remains registered until the signal handler is
 /// disconnected or the underlying GObject is destroyed.
-macro_rules! event {
+macro_rules! signal {
     (
         $(#[$meta:meta])*
         $method_name:ident,

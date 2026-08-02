@@ -36,27 +36,33 @@ impl std::ops::Deref for VoiceCall {
 unsafe fn set_all_call_status_writer(
     input: *mut QmiMessageVoiceIndicationRegisterInput,
     error: *mut *mut GError,
-    _unused: (),
+    enable: bool,
 ) -> gboolean {
     qmi_message_voice_indication_register_input_set_call_notification_events(
         input,
-        true.into_glib(),
+        enable.into_glib(),
         error,
     )
 }
 
-event!(
-    /// Enables voice call status indications.
+signal!(
+    /// Registers a callback for voice call status indications.
     ///
-    /// The supplied callback is invoked whenever the modem reports a
-    /// change in the state of one or more voice calls.
+    /// The callback is invoked whenever the modem reports a change in the
+    /// state of one or more voice calls.
     ///
-    /// Call status indications include events such as incoming calls,
-    /// call establishment, call termination, and state transitions.
+    /// The `enabled` parameter specifies whether the modem should immediately
+    /// enable or disable call status indications. The signal handler remains
+    /// connected regardless of this value, allowing indications to be
+    /// temporarily suspended and later re-enabled without reconnecting the
+    /// callback.
+    ///
+    /// Call status indications include events such as incoming calls, call
+    /// establishment, call termination, and other call state transitions.
     #[cfg_attr(docsrs, doc(cfg(feature = "v1_26")))]
-    set_all_call_status,
+    signal_all_call_status,
     CallInfoCallback,
-    unused: (),
+    enabled: bool,
     c"all-call-status",
     libqmi_glib_sys::QmiIndicationVoiceAllCallStatusOutput,
     all_call_status_cb,
@@ -67,7 +73,7 @@ event!(
     qmi_client_voice_indication_register_finish,
     qmi_message_voice_indication_register_output_get_result,
     qmi_message_voice_indication_register_output_unref,
-    "set_all_call_status"
+    "signal_all_call_status"
 );
 
 // IMPORTANT: Quick-and-dirty workaround to suppress duplicate incoming call events.
@@ -167,3 +173,22 @@ unsafe extern "C" fn all_call_status_cb(
         }
     }
 }
+
+setter!(
+    /// Enables or disables call status indications on the modem.
+    ///
+    /// Disabling the indications does not disconnect an existing GLib
+    /// signal handler. Re-enabling them allows the same handler to resume
+    /// receiving call status updates.
+    #[cfg_attr(docsrs, doc(cfg(feature = "v1_26")))]
+    set_all_call_status_indications,
+    qmi_message_voice_indication_register_input_set_call_notification_events,
+    enabled: bool,
+    qmi_message_voice_indication_register_input_new,
+    qmi_message_voice_indication_register_input_unref,
+    qmi_client_voice_indication_register,
+    qmi_client_voice_indication_register_finish,
+    qmi_message_voice_indication_register_output_get_result,
+    qmi_message_voice_indication_register_output_unref,
+    "set_all_call_status_indications"
+);

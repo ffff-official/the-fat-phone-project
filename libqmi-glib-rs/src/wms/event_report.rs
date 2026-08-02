@@ -5,17 +5,29 @@ pub type EventReportCallback = Box<dyn FnMut(QmiResult<(&[u8], WmsMessageFormat)
 unsafe fn set_event_report_writer(
     input: *mut QmiMessageWmsSetEventReportInput,
     error: *mut *mut GError,
-    _unused: (),
+    enabled: bool,
 ) -> gboolean {
-    qmi_message_wms_set_event_report_input_set_new_mt_message_indicator(input, 1, error)
+    qmi_message_wms_set_event_report_input_set_new_mt_message_indicator(
+        input,
+        enabled.into_glib(),
+        error,
+    )
 }
 
-event!(
-    /// Asynchronously sends a Set Event Report request to the device.
-    /// The sender parameter is the communication channel through which newly received SMS PDUs are sent.
-    set_event_report,
+signal!(
+    /// Registers a callback for incoming SMS event indications.
+    ///
+    /// The callback is invoked whenever the modem reports a newly received
+    /// SMS transferred through the configured WMS route.
+    ///
+    /// The `enabled` parameter specifies whether the modem should immediately
+    /// enable or disable SMS event indications. The signal handler remains
+    /// connected regardless of this value, allowing indications to be
+    /// temporarily suspended and later re-enabled without reconnecting the
+    /// callback.
+    signal_event_report,
     EventReportCallback,
-    unused: (),
+    enabled: bool,
     c"event-report",
     libqmi_glib_sys::QmiIndicationWmsEventReportOutput,
     event_report_cb,
@@ -26,7 +38,7 @@ event!(
     qmi_client_wms_set_event_report_finish,
     qmi_message_wms_set_event_report_output_get_result,
     qmi_message_wms_set_event_report_output_unref,
-    "set_event_report"
+    "signal_event_report"
 );
 
 unsafe extern "C" fn event_report_cb(
@@ -64,3 +76,21 @@ unsafe extern "C" fn event_report_cb(
         cb(Ok((data, message_format)));
     }
 }
+
+setter!(
+    /// Enables or disables incoming SMS event indications.
+    ///
+    /// Disabling the indications does not disconnect an existing GLib
+    /// signal handler. Re-enabling them allows the same handler to resume
+    /// receiving event report updates.
+    set_event_report_indications,
+    qmi_message_wms_set_event_report_input_set_new_mt_message_indicator,
+    enabled: bool,
+    qmi_message_wms_set_event_report_input_new,
+    qmi_message_wms_set_event_report_input_unref,
+    qmi_client_wms_set_event_report,
+    qmi_client_wms_set_event_report_finish,
+    qmi_message_wms_set_event_report_output_get_result,
+    qmi_message_wms_set_event_report_output_unref,
+    "set_event_report_indications"
+);
