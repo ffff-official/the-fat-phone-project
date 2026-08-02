@@ -193,16 +193,8 @@ unsafe fn get_card_status_extractor(
         error,
     );
 
-    if ret == GTRUE && !cards.is_null() && (*cards).len > 0 {
-        let slice = std::slice::from_raw_parts(
-            (*cards).data.cast::<QmiCardStatusOutputElem>(),
-            (*cards).len as usize,
-        );
-
-        param.cards = slice
-            .iter()
-            .map(|card| CardStatusOutputElem::from(*card))
-            .collect();
+    if ret == GTRUE {
+        param.cards = garray_primitive_to_vec::<QmiCardStatusOutputElem, _>(cards);
     }
     ret
 }
@@ -275,11 +267,8 @@ unsafe fn get_supported_messages_extractor(
     let ret =
         qmi_message_uim_get_supported_messages_output_get_list(output, &mut value_list, error);
 
-    if ret == GTRUE && !value_list.is_null() && (*value_list).len > 0 {
-        let slice =
-            std::slice::from_raw_parts((*value_list).data.cast::<u8>(), (*value_list).len as usize);
-
-        *param = slice.to_vec();
+    if ret == GTRUE {
+        *param = garray_primitive_to_vec::<guint8, _>(value_list);
     }
     ret
 }
@@ -402,31 +391,10 @@ unsafe fn get_slot_status_extractor(
         .enumerate()
         .map(|(index, slot)| {
             let info = information.map(|values| &values[index]);
-
-            let iccid = if slot.iccid.is_null() {
-                Vec::new()
-            } else {
-                std::slice::from_raw_parts(
-                    (*slot.iccid).data.cast::<u8>(),
-                    (*slot.iccid).len as usize,
-                )
-                .to_vec()
-            };
+            let iccid = garray_primitive_to_vec::<guint8, _>(slot.iccid);
             let eid = eid_elements
                 .and_then(|elements| elements.get(index))
-                .and_then(|element| {
-                    if element.eid.is_null() || (*element.eid).len == 0 {
-                        None
-                    } else {
-                        Some(
-                            std::slice::from_raw_parts(
-                                (*element.eid).data.cast::<u8>(),
-                                (*element.eid).len as usize,
-                            )
-                            .to_vec(),
-                        )
-                    }
-                });
+                .and_then(|element| Some(garray_primitive_to_vec::<guint8, _>(element.eid)));
 
             UimPhysicalSlotStatus {
                 card_status: from_glib(slot.physical_card_status),

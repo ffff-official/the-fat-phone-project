@@ -5,7 +5,7 @@ pub use libqmi_glib_types_rs::{WdsPdpType, WdsRequestedSettings};
 use super::*;
 use crate::sys::*;
 
-use glib_sys::{GError, GFALSE, gboolean};
+use glib_sys::{GError, GFALSE, GTRUE, gboolean, guint8};
 use libqmi_glib_types_rs::glib::translate::IntoGlib;
 
 use std::cell::RefCell;
@@ -384,4 +384,41 @@ setter_with_writer!(
     qmi_message_wds_stop_network_output_get_result,
     qmi_message_wds_stop_network_output_unref,
     "stop_ipv4_network"
+);
+
+unsafe fn get_supported_messages_extractor(
+    output: *mut QmiMessageWdsGetSupportedMessagesOutput,
+    error: *mut *mut GError,
+    param: &mut Vec<u8>,
+) -> gboolean {
+    let mut value_list: *mut GArray = null_mut();
+
+    let ret =
+        qmi_message_wds_get_supported_messages_output_get_list(output, &mut value_list, error);
+    if ret == GTRUE {
+        *param = garray_primitive_to_vec::<guint8, _>(value_list);
+    }
+    ret
+}
+
+getter_with_extractor!(
+    /// Retrieves the bitmap of WDS messages supported by the modem.
+    ///
+    /// Each bit in the returned byte vector corresponds to a WDS message
+    /// identifier. A set bit indicates that the modem reports support for
+    /// that message.
+    ///
+    /// The message identifier associated with a bit is calculated as:
+    ///
+    /// `byte_index * 8 + bit_index`
+    #[cfg(feature = "v1_14")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "v1_14")))]
+    get_supported_messages,
+    get_supported_messages_extractor,
+    Vec<u8>,
+    qmi_client_wds_get_supported_messages,
+    qmi_client_wds_get_supported_messages_finish,
+    qmi_message_wds_get_supported_messages_output_get_result,
+    qmi_message_wds_get_supported_messages_output_unref,
+    "get_supported_messages"
 );

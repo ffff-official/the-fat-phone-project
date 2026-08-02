@@ -3,7 +3,7 @@ pub use libqmi_glib_types_rs::{
     DmsTimeSource,
 };
 
-use glib_sys::{GArray, GError, GFALSE, GTRUE, gboolean};
+use glib_sys::{GArray, GError, GFALSE, GTRUE, gboolean, guint8};
 use libqmi_glib_types_rs::glib::translate::{IntoGlib, from_glib};
 
 use super::*;
@@ -122,16 +122,8 @@ unsafe fn get_capabilities_extractor(
     if ret == GTRUE {
         param.data_service_capability = from_glib(data_service_capability);
         param.sim_capability = from_glib(sim_capability);
-        if !value_info_radio_interface_list.is_null() && (*value_info_radio_interface_list).len > 0
-        {
-            let slice = std::slice::from_raw_parts(
-                (*value_info_radio_interface_list)
-                    .data
-                    .cast::<QmiDmsRadioInterface>(),
-                (*value_info_radio_interface_list).len as usize,
-            );
-            param.radio_interfaces = slice.iter().map(|iface| from_glib(*iface)).collect();
-        }
+        param.radio_interfaces =
+            garray_glib_to_vec::<QmiDmsRadioInterface, _>(value_info_radio_interface_list);
     }
     ret
 }
@@ -619,10 +611,8 @@ unsafe fn get_supported_messages_extractor(
     let mut value_list: *mut GArray = null_mut();
     let ret =
         qmi_message_dms_get_supported_messages_output_get_list(output, &mut value_list, error);
-    if ret == GTRUE && !value_list.is_null() && (*value_list).len > 0 {
-        let slice =
-            std::slice::from_raw_parts((*value_list).data.cast::<u8>(), (*value_list).len as usize);
-        *param = slice.to_vec();
+    if ret == GTRUE {
+        *param = garray_primitive_to_vec::<guint8, _>(value_list);
     }
     ret
 }

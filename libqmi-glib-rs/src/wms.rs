@@ -229,17 +229,10 @@ unsafe fn get_routes_extractor(
     let mut value_route_list: *mut GArray = null_mut();
     let ret =
         qmi_message_wms_get_routes_output_get_route_list(output, &mut value_route_list, error);
-    if ret == GTRUE && !value_route_list.is_null() && (*value_route_list).len > 0 {
-        *param = std::slice::from_raw_parts(
-            (*value_route_list)
-                .data
-                .cast::<QmiMessageWmsGetRoutesOutputRouteListElement>(),
-            (*value_route_list).len as usize,
-        )
-        .iter()
-        .copied()
-        .map(Route::from)
-        .collect::<Vec<Route>>();
+    if ret == GTRUE {
+        *param = garray_primitive_to_vec::<QmiMessageWmsGetRoutesOutputRouteListElement, _>(
+            value_route_list,
+        );
     }
     ret
 }

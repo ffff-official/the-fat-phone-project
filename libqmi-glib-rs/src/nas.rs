@@ -882,17 +882,8 @@ unsafe fn get_acquisition_order_preference_extractor(
             &mut garray,
             error,
         );
-    if ret == GTRUE && !garray.is_null() {
-        let values = std::slice::from_raw_parts(
-            (*garray).data.cast::<QmiNasRadioInterface>(),
-            (*garray).len as usize,
-        );
-
-        *param = values
-            .iter()
-            .copied()
-            .map(|value| from_glib(value))
-            .collect();
+    if ret == GTRUE {
+        *param = garray_glib_to_vec::<QmiNasRadioInterface, _>(garray);
     }
     ret
 }
