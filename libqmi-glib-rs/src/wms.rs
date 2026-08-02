@@ -1,5 +1,6 @@
 mod event_report;
 pub use event_report::*;
+/// Alias for a WMS message route entry.
 pub type Route = libqmi_glib_types_rs::MessageWmsGetRoutesOutputRouteListElement;
 
 use glib_sys::GTRUE;

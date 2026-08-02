@@ -1,5 +1,10 @@
 use super::*;
 
+/// Callback invoked when a WMS event report containing a raw message is received.
+///
+/// The callback receives the raw message payload together with its
+/// [`WmsMessageFormat`], or a [`QmiError`] if the indication could not be
+/// processed.
 pub type EventReportCallback = Box<dyn FnMut(QmiResult<(&[u8], WmsMessageFormat)>)>;
 
 unsafe fn set_event_report_writer(

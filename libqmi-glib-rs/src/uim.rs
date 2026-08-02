@@ -8,6 +8,7 @@ pub use libqmi_glib_types_rs::{UimPinId, UimSessionType};
 pub use libqmi_glib_types_rs::{UimCardProtocol, UimPhysicalCardState, UimSlotState};
 
 #[cfg(feature = "v1_10")]
+/// Alias for a UIM card status entry returned by the `Get Card Status` request.
 pub type QmiCardStatusOutputElem = QmiMessageUimGetCardStatusOutputCardStatusCardsElement;
 
 use libqmi_glib_types_rs::glib::translate::{IntoGlib, from_glib};
@@ -515,9 +516,12 @@ setter_with_writer!(
 );
 
 #[cfg(feature = "v1_26")]
+/// Maps a logical UIM slot to a physical slot.
 #[derive(Debug, Clone, Copy)]
 pub struct UimSlotMapping {
+    /// Logical slot identifier.
     pub logical_slot: u8,
+    /// Physical slot identifier.
     pub physical_slot: u8,
 }
 
