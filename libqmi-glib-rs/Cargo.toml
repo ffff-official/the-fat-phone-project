@@ -4,9 +4,9 @@ version = "0.1.4"
 edition = "2024"
 authors = ["bmickael <bmickael@proton.me>"]
 repository = "https://gitlab.com/mordaklavache/the-fat-phone-project"
-description = "A minimal, safe Rust interface for libqmi"
+description = "A safe Rust interface to a substantial subset of libqmi QMI services"
 readme = "README.md"
-keywords = ["gsm", "qmi", "sms", "mms", "phone"]
+keywords = ["gsm", "qmi", "sms", "qualcomm", "phone"]
 license = "MIT/Apache-2.0"
 
 [dependencies]
