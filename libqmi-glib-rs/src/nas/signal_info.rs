@@ -1,5 +1,8 @@
 use super::*;
 
+pub type SignalInfoCallback = Box<dyn FnMut(QmiResult<SignalInfo>)>;
+
+use glib_sys::{GError, g_clear_error};
 use gobject_sys::GClosure;
 
 /// Signal quality information for a specific radio access technology.
@@ -137,8 +140,6 @@ const SETTERS: &[RadioType] = &[
                      qmi_message_nas_config_signal_info_v2_input_set_nr5g_rsrq_delta]
     },
 ];
-
-type SignalInfoCallback = Box<dyn FnMut(QmiResult<SignalInfo>)>;
 
 #[derive(Debug)]
 #[rustfmt::skip]

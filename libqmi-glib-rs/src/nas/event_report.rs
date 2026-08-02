@@ -2,6 +2,8 @@ use super::*;
 
 pub type EventReportCallback = Box<dyn FnMut(QmiResult<NasEventReport>)>;
 
+use glib_sys::{GError, g_clear_error};
+
 /// Signal measurements reported by a NAS event report.
 ///
 /// The available measurements depend on the radio interface and on the

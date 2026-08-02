@@ -64,7 +64,7 @@ pub(crate) mod __macro_support {
     pub(crate) use crate::sys::*;
     pub use futures::channel::oneshot;
     pub use gio_sys::GAsyncResult;
-    pub use glib_sys::GFALSE;
+    pub use glib_sys::{GError, GFALSE};
     pub use gobject_sys::{
         GClosure, GObject, g_object_ref, g_object_unref, g_signal_connect_data,
         g_signal_handler_disconnect,
@@ -487,7 +487,7 @@ macro_rules! setter {
 }
 
 #[allow(unused)]
-unsafe fn dummy_result<T>(_output: *mut T, _error: *mut *mut GError) -> Result<(), ()> {
+unsafe fn dummy_result<T>(_output: *mut T, _error: *mut *mut glib_sys::GError) -> Result<(), ()> {
     Ok(())
 }
 
@@ -824,8 +824,6 @@ pub use wds::WdsClient;
 #[doc(inline)]
 pub use wms::WmsClient;
 
-use glib_sys::{GError, g_clear_error};
-
 const OPERATION_TIMEOUT: u32 = 5;
 
 fn cannot_send<T: std::fmt::Debug>(result: &QmiResult<T>) {
@@ -896,8 +894,8 @@ impl Debug for QmiError {
 }
 
 #[doc(hidden)]
-impl From<(*mut GError, &'static str)> for QmiError {
-    fn from((mut error, context): (*mut GError, &'static str)) -> Self {
+impl From<(*mut glib_sys::GError, &'static str)> for QmiError {
+    fn from((mut error, context): (*mut glib_sys::GError, &'static str)) -> Self {
         if error.is_null() {
             return Self {
                 message: "Unknown GLib error".into(),
@@ -917,7 +915,7 @@ impl From<(*mut GError, &'static str)> for QmiError {
                 domain: Some((*error).domain),
             };
 
-            g_clear_error(&mut error);
+            glib_sys::g_clear_error(&mut error);
             ret
         }
     }
@@ -941,18 +939,6 @@ impl QmiError {
 }
 
 impl std::error::Error for QmiError {}
-
-#[doc(hidden)]
-impl<T: std::error::Error> From<(T, &'static str, ())> for QmiError {
-    fn from((error, context, _): (T, &'static str, ())) -> Self {
-        Self {
-            message: error.to_string(),
-            context,
-            code: None,
-            domain: None,
-        }
-    }
-}
 
 impl QmiError {
     fn cb_droped(context: &'static str) -> Self {

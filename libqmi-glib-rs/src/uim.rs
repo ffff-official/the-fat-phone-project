@@ -13,25 +13,16 @@ pub type QmiCardStatusOutputElem = QmiMessageUimGetCardStatusOutputCardStatusCar
 use libqmi_glib_types_rs::glib::translate::{IntoGlib, from_glib};
 
 use super::*;
-
 use crate::sys::*;
 
 use futures::channel::oneshot;
 use gio_sys::GAsyncResult;
-use glib_sys::GArray;
-use glib_sys::GFALSE;
-use glib_sys::GTRUE;
-use glib_sys::g_array_new;
-use glib_sys::g_array_unref;
-use glib_sys::gboolean;
-use glib_sys::guint8;
+use glib_sys::{GArray, GError, GFALSE, GTRUE, g_array_new, g_array_unref, gboolean, guint8};
 use gobject_sys::GObject;
 
 use std::cell::RefCell;
-use std::ffi::CString;
-use std::ffi::c_void;
-use std::ptr::NonNull;
-use std::ptr::null_mut;
+use std::ffi::{CString, c_void};
+use std::ptr::{NonNull, null_mut};
 use std::rc::Rc;
 
 /// A client for interacting with the User Identity Module (UIM) interface of a QMI device.

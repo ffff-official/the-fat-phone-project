@@ -1,24 +1,23 @@
 mod event_report;
 pub use event_report::*;
-pub type Route = MessageWmsGetRoutesOutputRouteListElement;
+pub type Route = libqmi_glib_types_rs::MessageWmsGetRoutesOutputRouteListElement;
 
 use glib_sys::GTRUE;
 use glib_sys::gboolean;
 
 use super::*;
-
 use crate::sys::*;
+
 use futures::channel::oneshot;
 use gio_sys::GAsyncResult;
 use glib_sys::{
     GArray, GError, GFALSE, g_array_append_vals, g_array_sized_new, g_array_unref, guint16, guint32,
 };
 use gobject_sys::GObject;
-use libqmi_glib_types_rs::MessageWmsGetRoutesOutputRouteListElement;
-use libqmi_glib_types_rs::glib::translate::FromGlib;
-use libqmi_glib_types_rs::glib::translate::IntoGlib;
-use libqmi_glib_types_rs::slice_to_garray;
-use libqmi_glib_types_rs::{WmsGsmUmtsRpCause, WmsGsmUmtsTpCause, WmsMessageFormat};
+use libqmi_glib_types_rs::glib::translate::{FromGlib, IntoGlib};
+use libqmi_glib_types_rs::{
+    WmsGsmUmtsRpCause, WmsGsmUmtsTpCause, WmsMessageFormat, slice_to_garray,
+};
 
 use std::cell::RefCell;
 use std::ffi::c_void;

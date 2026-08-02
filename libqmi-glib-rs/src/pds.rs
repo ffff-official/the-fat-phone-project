@@ -7,10 +7,9 @@ pub use libqmi_glib_types_rs::{PdsOperatingMode, PdsTrackingSessionState};
 // TODO : Reset
 
 use super::*;
-
 use crate::sys::*;
 
-use glib_sys::{GFALSE, GTRUE, gboolean};
+use glib_sys::{GError, GFALSE, GTRUE, gboolean};
 use libqmi_glib_types_rs::Service;
 use libqmi_glib_types_rs::glib::translate::from_glib;
 

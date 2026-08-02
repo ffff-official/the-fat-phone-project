@@ -9,16 +9,14 @@ pub use libqmi_glib_types_rs::{
 };
 
 use super::*;
-
 use crate::sys::*;
 
-use glib_sys::{GFALSE, gboolean};
+use glib_sys::{GError, GFALSE, gboolean};
 use gobject_sys::GObject;
 
 use std::cell::RefCell;
 use std::ffi::{CString, c_void};
-use std::ptr::NonNull;
-use std::ptr::null_mut;
+use std::ptr::{NonNull, null_mut};
 use std::rc::Rc;
 
 /// A client for interacting with the Voice service of a QMI device.

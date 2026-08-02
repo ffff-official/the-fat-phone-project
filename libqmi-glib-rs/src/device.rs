@@ -1,17 +1,14 @@
 use super::*;
-
 use crate::sys::*;
+
 use futures::channel::oneshot;
-use gio_sys::g_file_new_for_path;
-use gio_sys::{GAsyncResult, GFile};
+use gio_sys::{GAsyncResult, GFile, g_file_new_for_path};
 use glib_sys::{GError, GFALSE};
 use gobject_sys::{GObject, g_object_ref, g_object_unref};
-use libqmi_glib_types_rs::glib::translate::FromGlib;
-use libqmi_glib_types_rs::glib::translate::IntoGlib;
+use libqmi_glib_types_rs::glib::translate::{FromGlib, IntoGlib};
 use libqmi_glib_types_rs::{DeviceExpectedDataFormat, DeviceOpenFlags};
 
-use std::ffi::CString;
-use std::ffi::{CStr, c_void};
+use std::ffi::{CStr, CString, c_void};
 use std::ops::Deref;
 use std::ptr::{NonNull, null_mut};
 
@@ -53,7 +50,7 @@ impl Device {
             .ok_or_else(|| QmiError::new("Invalid UTF-8 path", "Device::from_path"))?;
 
         let path = CString::new(path)
-            .map_err(|error| Into::<QmiError>::into((error, "Device::from_path", ())))?;
+            .map_err(|error| QmiError::new(error.to_string(), "Device::from_path"))?;
 
         unsafe {
             let file = g_file_new_for_path(path.as_ptr());

@@ -12,7 +12,7 @@ use futures::channel::oneshot::{self, Sender};
 use gio_sys::GAsyncResult;
 #[cfg(feature = "v1_22")]
 use glib_sys::{GArray, g_array_unref};
-use glib_sys::{GFALSE, GTRUE, gboolean};
+use glib_sys::{GError, GFALSE, GTRUE, gboolean};
 use gobject_sys::GObject;
 use libqmi_glib_types_rs::DmsRadioInterface;
 use libqmi_glib_types_rs::glib::translate::{IntoGlib, from_glib};

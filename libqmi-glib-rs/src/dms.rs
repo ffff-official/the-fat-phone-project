@@ -3,11 +3,10 @@ pub use libqmi_glib_types_rs::{
     DmsTimeSource,
 };
 
-use glib_sys::{GArray, GFALSE, GTRUE, gboolean};
+use glib_sys::{GArray, GError, GFALSE, GTRUE, gboolean};
 use libqmi_glib_types_rs::glib::translate::{IntoGlib, from_glib};
 
 use super::*;
-
 use crate::sys::*;
 
 use std::cell::RefCell;

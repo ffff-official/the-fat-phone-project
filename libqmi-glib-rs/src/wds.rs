@@ -3,8 +3,8 @@ pub use libqmi_glib_types_rs::{WdsConnectionStatus, WdsIpFamily};
 pub use libqmi_glib_types_rs::{WdsPdpType, WdsRequestedSettings};
 
 use super::*;
-
 use crate::sys::*;
+
 use glib_sys::{GError, GFALSE, gboolean};
 use libqmi_glib_types_rs::glib::translate::IntoGlib;
 
