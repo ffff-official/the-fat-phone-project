@@ -724,3 +724,86 @@ macro_rules! signal {
         }
     }
 }
+
+/// Registers a GLib signal handler that does not require any prior QMI
+/// configuration request.
+///
+/// Unlike [`signal!`], this macro only connects a callback to an existing
+/// signal exposed by `libqmi-glib`. It is intended for indications that are
+/// emitted automatically by the modem and therefore do not require sending a
+/// `Set Event Report`, `Indication Register`, or similar request beforehand.
+///
+/// The generated method:
+/// - Stores the user callback for the lifetime of the signal connection.
+/// - Connects it using `g_signal_connect_data()`.
+/// - Automatically releases the callback when the signal handler is
+///   disconnected or when the underlying `GObject` is destroyed.
+///
+/// # Parameters
+///
+/// - `method_name`: Name of the generated method.
+/// - `callback_type`: Type of the user callback.
+/// - `signal_name`: Name of the GLib signal to connect.
+/// - `callback_input`: Type of the indication object passed to the callback.
+/// - `callback_function`: Internal C callback invoked by GLib.
+/// - `context`: Context string used when reporting errors.
+macro_rules! signal_only {
+    (
+        $(#[$meta:meta])*
+        $method_name:ident,
+        $callback_type:ty,
+        $signal_name:expr,
+        $callback_input:ty,
+        $callback_function:path,
+        $context:literal
+    ) => {
+        impl Context {
+            $(#[$meta])*
+            pub async fn $method_name(&mut self, cb: $callback_type) -> QmiResult<()> {
+                use $crate::__macro_support::*;
+
+                // Called when the signal handler is disconnected or when the
+                // underlying GObject is destroyed.
+                unsafe extern "C" fn destroyer(
+                    data: *mut c_void,
+                    _closure: *mut GClosure,
+                ) {
+                    tracing::debug!(concat!("destroy: ", $context));
+                    drop(Box::from_raw(data.cast::<$callback_type>()));
+                }
+
+                unsafe {
+                    let cb_ptr = Box::into_raw(Box::new(cb)).cast();
+
+                    let handler_id = g_signal_connect_data(
+                        self.client.as_ptr().cast(),
+                        $signal_name.as_ptr(),
+                        Some(std::mem::transmute::<
+                            unsafe extern "C" fn(
+                                *mut GObject,
+                                *mut $callback_input,
+                                *mut c_void,
+                            ),
+                            unsafe extern "C" fn(),
+                        >($callback_function)),
+                        cb_ptr,
+                        Some(destroyer),
+                        0,
+                    );
+
+                    if handler_id == 0 {
+                        drop(Box::from_raw(cb_ptr.cast::<$callback_type>()));
+                        Err(QmiError::new("handler id = 0", $context))?;
+                    } else {
+                        tracing::debug!(
+                            concat!($context, " handler id = {}"),
+                            handler_id
+                        );
+                    }
+                }
+
+                Ok(())
+            }
+        }
+    }
+}

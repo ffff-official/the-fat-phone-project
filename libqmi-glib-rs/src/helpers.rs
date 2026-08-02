@@ -1,5 +1,5 @@
 use glib_sys::GArray;
-use libqmi_glib_types_rs::glib::translate::{FromGlib, IntoGlib, from_glib};
+use libqmi_glib_types_rs::glib::translate::FromGlib;
 
 use crate::QmiResult;
 

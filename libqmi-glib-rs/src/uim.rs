@@ -394,7 +394,7 @@ unsafe fn get_slot_status_extractor(
             let iccid = garray_primitive_to_vec::<guint8, _>(slot.iccid);
             let eid = eid_elements
                 .and_then(|elements| elements.get(index))
-                .and_then(|element| Some(garray_primitive_to_vec::<guint8, _>(element.eid)));
+                .map(|element| garray_primitive_to_vec::<guint8, _>(element.eid));
 
             UimPhysicalSlotStatus {
                 card_status: from_glib(slot.physical_card_status),

@@ -1,4 +1,13 @@
-pub use libqmi_glib_types_rs::{WdsConnectionStatus, WdsIpFamily};
+mod packet_service_status;
+pub use packet_service_status::WdsPacketServiceStatus;
+
+#[cfg(feature = "v1_18")]
+pub use libqmi_glib_types_rs::WdsDormancyStatus;
+#[cfg(feature = "v1_6")]
+pub use libqmi_glib_types_rs::WdsPacketStatisticsMaskFlag;
+pub use libqmi_glib_types_rs::{
+    WdsConnectionStatus, WdsDataBearerTechnology, WdsIpFamily, WdsNetworkType,
+};
 #[cfg(feature = "v1_32")]
 pub use libqmi_glib_types_rs::{WdsPdpType, WdsRequestedSettings};
 
@@ -421,4 +430,218 @@ getter_with_extractor!(
     qmi_message_wds_get_supported_messages_output_get_result,
     qmi_message_wds_get_supported_messages_output_unref,
     "get_supported_messages"
+);
+
+/// Packet transfer statistics reported by the WDS service.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct WdsPacketStatistics {
+    /// Number of successfully transmitted packets.
+    pub tx_packets_ok: Option<u32>,
+    /// Number of successfully received packets.
+    pub rx_packets_ok: Option<u32>,
+    /// Number of packets that could not be transmitted.
+    pub tx_packets_error: Option<u32>,
+    /// Number of received packets containing errors.
+    pub rx_packets_error: Option<u32>,
+    /// Number of transmit buffer overflows.
+    pub tx_overflows: Option<u32>,
+    /// Number of receive buffer overflows.
+    pub rx_overflows: Option<u32>,
+    /// Number of successfully transmitted bytes.
+    pub tx_bytes_ok: Option<u64>,
+    /// Number of successfully received bytes.
+    pub rx_bytes_ok: Option<u64>,
+}
+
+unsafe fn get_packet_statistics_writer(
+    input: *mut QmiMessageWdsGetPacketStatisticsInput,
+    error: *mut *mut GError,
+    mask: WdsPacketStatisticsMaskFlag,
+) -> gboolean {
+    qmi_message_wds_get_packet_statistics_input_set_mask(input, mask.into_glib(), error)
+}
+
+unsafe fn get_packet_statistics_extractor(
+    output: *mut QmiMessageWdsGetPacketStatisticsOutput,
+    _error: *mut *mut GError,
+) -> Result<WdsPacketStatistics, ()> {
+    let tx_packets_ok = get_optional(|value, error| {
+        qmi_message_wds_get_packet_statistics_output_get_tx_packets_ok(output, value, error)
+    });
+    let rx_packets_ok = get_optional(|value, error| {
+        qmi_message_wds_get_packet_statistics_output_get_rx_packets_ok(output, value, error)
+    });
+    let tx_packets_error = get_optional(|value, error| {
+        qmi_message_wds_get_packet_statistics_output_get_tx_packets_error(output, value, error)
+    });
+    let rx_packets_error = get_optional(|value, error| {
+        qmi_message_wds_get_packet_statistics_output_get_rx_packets_error(output, value, error)
+    });
+    let tx_overflows = get_optional(|value, error| {
+        qmi_message_wds_get_packet_statistics_output_get_tx_overflows(output, value, error)
+    });
+    let rx_overflows = get_optional(|value, error| {
+        qmi_message_wds_get_packet_statistics_output_get_rx_overflows(output, value, error)
+    });
+    let tx_bytes_ok = get_optional(|value, error| {
+        qmi_message_wds_get_packet_statistics_output_get_tx_bytes_ok(output, value, error)
+    });
+    let rx_bytes_ok = get_optional(|value, error| {
+        qmi_message_wds_get_packet_statistics_output_get_rx_bytes_ok(output, value, error)
+    });
+    Ok(WdsPacketStatistics {
+        tx_packets_ok,
+        rx_packets_ok,
+        tx_packets_error,
+        rx_packets_error,
+        tx_overflows,
+        rx_overflows,
+        tx_bytes_ok,
+        rx_bytes_ok,
+    })
+}
+
+request_with_writer_and_extractor!(
+    /// Retrieves packet transfer statistics from the WDS service.
+    ///
+    /// The supplied mask specifies which counters should be included in
+    /// the response.
+    #[cfg(feature = "v1_6")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "v1_6")))]
+    get_packet_statistics,
+    get_packet_statistics_writer,
+    statistics: WdsPacketStatisticsMaskFlag,
+    qmi_message_wds_get_packet_statistics_input_new,
+    qmi_message_wds_get_packet_statistics_input_unref,
+    qmi_client_wds_get_packet_statistics,
+    qmi_client_wds_get_packet_statistics_finish,
+    qmi_message_wds_get_packet_statistics_output_get_result,
+    qmi_message_wds_get_packet_statistics_output_unref,
+    WdsPacketStatistics,
+    get_packet_statistics_extractor,
+    "get_packet_statistics"
+);
+
+getter!(
+    /// Retrieves the data bearer technology used by the current packet
+    /// data session.
+    get_data_bearer_technology,
+    qmi_message_wds_get_data_bearer_technology_output_get_current,
+    WdsDataBearerTechnology,
+    qmi_client_wds_get_data_bearer_technology,
+    qmi_client_wds_get_data_bearer_technology_finish,
+    qmi_message_wds_get_data_bearer_technology_output_get_result,
+    qmi_message_wds_get_data_bearer_technology_output_unref,
+    "get_data_bearer_technology"
+);
+
+/// Detailed bearer technology information for the current data session.
+///
+/// This structure describes the radio technology currently used by the active
+/// data bearer.
+///
+/// The meaning of `rat_mask` and `service_option_mask` depends on the selected
+/// [`WdsNetworkType`]. These fields are bitmasks defined by the QMI WDS
+/// protocol and identify the active radio access technology (RAT) and any
+/// additional service options reported by the modem.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct WdsDetailedBearerTechnology {
+    /// The network family associated with the current bearer.
+    pub network_type: WdsNetworkType,
+    /// Bitmask describing the active radio access technology (RAT).
+    ///
+    /// The interpretation of this field depends on [`Self::network_type`].
+    pub rat_mask: u32,
+    /// Bitmask describing additional service options for the current bearer.
+    ///
+    /// The interpretation of this field depends on [`Self::network_type`].
+    pub service_option_mask: u32,
+}
+
+impl Default for WdsDetailedBearerTechnology {
+    fn default() -> Self {
+        Self {
+            network_type: WdsNetworkType::__Unknown(0),
+            rat_mask: u32::default(),
+            service_option_mask: u32::default(),
+        }
+    }
+}
+
+unsafe fn get_current_data_bearer_technology_extractor(
+    output: *mut QmiMessageWdsGetCurrentDataBearerTechnologyOutput,
+    error: *mut *mut GError,
+    bearer_tech: &mut WdsDetailedBearerTechnology,
+) -> gboolean {
+    let mut value_current_network_type: QmiWdsNetworkType = 0;
+    let ret = qmi_message_wds_get_current_data_bearer_technology_output_get_current(
+        output,
+        &mut value_current_network_type,
+        &mut bearer_tech.rat_mask,
+        &mut bearer_tech.service_option_mask,
+        error,
+    );
+    if ret == GTRUE {
+        bearer_tech.network_type = from_glib(value_current_network_type);
+    }
+    ret
+}
+
+getter_with_extractor!(
+    /// Retrieves detailed bearer technology information for the current
+    /// packet data session.
+    get_current_data_bearer_technology,
+    get_current_data_bearer_technology_extractor,
+    WdsDetailedBearerTechnology,
+    qmi_client_wds_get_current_data_bearer_technology,
+    qmi_client_wds_get_current_data_bearer_technology_finish,
+    qmi_message_wds_get_current_data_bearer_technology_output_get_result,
+    qmi_message_wds_get_current_data_bearer_technology_output_unref,
+    "get_current_data_bearer_technology"
+);
+
+unsafe fn get_last_data_bearer_technology_extractor(
+    output: *mut QmiMessageWdsGetCurrentDataBearerTechnologyOutput,
+    error: *mut *mut GError,
+    bearer_tech: &mut WdsDetailedBearerTechnology,
+) -> gboolean {
+    let mut value_last_network_type: QmiWdsNetworkType = 0;
+    let ret = qmi_message_wds_get_current_data_bearer_technology_output_get_last(
+        output,
+        &mut value_last_network_type,
+        &mut bearer_tech.rat_mask,
+        &mut bearer_tech.service_option_mask,
+        error,
+    );
+    if ret == GTRUE {
+        bearer_tech.network_type = from_glib(value_last_network_type);
+    }
+    ret
+}
+
+getter_with_extractor!(
+    /// Retrieves detailed bearer technology information for the last
+    /// packet data session.
+    get_last_data_bearer_technology,
+    get_last_data_bearer_technology_extractor,
+    WdsDetailedBearerTechnology,
+    qmi_client_wds_get_current_data_bearer_technology,
+    qmi_client_wds_get_current_data_bearer_technology_finish,
+    qmi_message_wds_get_current_data_bearer_technology_output_get_result,
+    qmi_message_wds_get_current_data_bearer_technology_output_unref,
+    "get_last_data_bearer_technology"
+);
+
+getter!(
+    /// Retrieves the dormancy status of the current packet data session.
+    #[cfg(feature = "v1_18")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "v1_18")))]
+    get_dormancy_status,
+    qmi_message_wds_get_dormancy_status_output_get_dormancy_status,
+    WdsDormancyStatus,
+    qmi_client_wds_get_dormancy_status,
+    qmi_client_wds_get_dormancy_status_finish,
+    qmi_message_wds_get_dormancy_status_output_get_result,
+    qmi_message_wds_get_dormancy_status_output_unref,
+    "get_dormancy_status"
 );
