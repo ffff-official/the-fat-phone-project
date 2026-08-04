@@ -14,21 +14,16 @@ pub use libqmi_glib_types_rs::{WdsPdpType, WdsRequestedSettings};
 use super::*;
 use crate::sys::*;
 
-use glib_sys::{GError, GFALSE, GTRUE, gboolean, guint8};
-use libqmi_glib_types_rs::glib::translate::IntoGlib;
+use glib_sys::{GArray, GError, GFALSE, GTRUE, gboolean, guint8};
+use libqmi_glib_types_rs::glib::translate::{IntoGlib, from_glib};
 
 use std::cell::RefCell;
 use std::ffi::CString;
-use std::ptr::NonNull;
+use std::ptr::{NonNull, null_mut};
 use std::rc::Rc;
 
 #[cfg(feature = "v1_32")]
-use {
-    glib_sys::GArray,
-    libqmi_glib_types_rs::glib::translate::from_glib,
-    std::net::{Ipv4Addr, Ipv6Addr},
-    std::ptr::null_mut,
-};
+use std::net::{Ipv4Addr, Ipv6Addr};
 
 /// A client for interacting with the Wireless Data Service (WDS) of a QMI device.
 ///
@@ -239,7 +234,6 @@ unsafe fn get_current_ip_settings_extractor(
     })
 }
 
-#[cfg(feature = "v1_32")]
 unsafe fn get_optional<F, T: Default>(mut f: F) -> Option<T>
 where
     F: FnMut(*mut T, *mut *mut GError) -> gboolean,
@@ -432,6 +426,7 @@ getter_with_extractor!(
     "get_supported_messages"
 );
 
+#[cfg(feature = "v1_6")]
 /// Packet transfer statistics reported by the WDS service.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct WdsPacketStatistics {
@@ -453,6 +448,7 @@ pub struct WdsPacketStatistics {
     pub rx_bytes_ok: Option<u64>,
 }
 
+#[cfg(feature = "v1_6")]
 unsafe fn get_packet_statistics_writer(
     input: *mut QmiMessageWdsGetPacketStatisticsInput,
     error: *mut *mut GError,
@@ -461,6 +457,7 @@ unsafe fn get_packet_statistics_writer(
     qmi_message_wds_get_packet_statistics_input_set_mask(input, mask.into_glib(), error)
 }
 
+#[cfg(feature = "v1_6")]
 unsafe fn get_packet_statistics_extractor(
     output: *mut QmiMessageWdsGetPacketStatisticsOutput,
     _error: *mut *mut GError,
