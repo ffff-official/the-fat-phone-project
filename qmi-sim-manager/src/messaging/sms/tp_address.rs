@@ -71,7 +71,7 @@ impl TpAddress {
         tracing::debug!("type_of_number = {:?}", type_of_address.type_of_number());
         let encoded_len = length / 2 + length % 2;
         let address = match type_of_address.type_of_number() {
-            TypeOfNumber::INTERNATIONAL_NUMBER => {
+            TypeOfNumber::NATIONAL_NUMBER | TypeOfNumber::INTERNATIONAL_NUMBER => {
                 let mut address = String::new();
                 for i in 2..(2 + encoded_len) {
                     let value = *s.get_result(i)?;
